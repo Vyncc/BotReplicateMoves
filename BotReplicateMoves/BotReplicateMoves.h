@@ -38,12 +38,30 @@ struct Record
 	Vector BallVelocity;
 };
 
+struct Shot
+{
+	Vector InitLocation = { 0, 0, 0 };
+	Rotator InitRotation = { 0, 0, 0 };
+	Vector InitVelocity = { 0, 0, 0 };
+	Vector InitAngularVelocity = { 0, 0, 0 };
+
+	std::vector<Record> ticks;
+};
+
+struct Pack
+{
+	std::string name;
+	std::vector<Shot> shots;
+};
+
+
 //magic macro that defines serialize\deserialize functions automagically
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(MyControllerInput, Throttle, Steer, Pitch, Yaw, Roll, DodgeForward, DodgeStrafe, Handbrake, Jump, ActivateBoost, HoldingBoost, Jumped)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Vector, X, Y, Z)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Rotator, Pitch, Yaw, Roll)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Record, Input, Location, Rotation, Velocity, BallLocation, BallRotation, BallVelocity)
-
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Shot, InitLocation, InitRotation, InitVelocity, InitAngularVelocity, ticks)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Pack, name, shots)
 
 /*
 void to_json(json& j, const Record& r)
@@ -74,7 +92,7 @@ void from_json(const json& j, Record& record)
 
 
 
-class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public BakkesMod::Plugin::PluginSettingsWindow/*, public BakkesMod::Plugin::PluginWindow*/
+class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public BakkesMod::Plugin::PluginSettingsWindow, public BakkesMod::Plugin::PluginWindow
 {
 
 	//std::shared_ptr<bool> enabled;
@@ -90,9 +108,13 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	bool UsePlayerCar = false;
 	bool UseTimeLine = false;
 	bool recording = false;
+	bool SetupingShot = false;;
+	bool RecordingPlayerInitLoc = false;
 	bool playRecord = false;
 	bool botSpawned = false;
 	bool botTeleported = false;
+
+	bool IsPlayingPack = false;
 
 	Vector recordInitLocation;
 	Rotator recordInitRotation;
@@ -102,12 +124,17 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	int tickCount = 0;
 	int inputsIndex = 0;
 
-	std::vector<Record> RecordsList;
+	Shot CurrentShot;
+	int selectedShot;
+	Pack CurrentPack = { "PackMonGate", {} };
+
 
 
 
 	void SaveActualRecord(std::vector<Record> recordsList);
-	void LoadActualRecord(std::filesystem::path filePath);
+	void LoadRecord(std::filesystem::path filePath);
+	void SavePack(Pack pack);
+	void LoadPack(std::filesystem::path filePath);
 
 
 	std::string dataPath = gameWrapper->GetDataFolder().string() + "\\BotReplicateMoves\\";
@@ -115,6 +142,8 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 
 	void onTick(std::string eventName);
 	void InitGame(std::string eventName);
+
+	bool Directory_Or_File_Exists(const std::filesystem::path& p, std::filesystem::file_status s = std::filesystem::file_status{});
 
 	//Canvas
 	virtual void RenderCanvas(CanvasWrapper canvas);
@@ -126,11 +155,16 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 
 	void RenderFileList();
 	void RenderTimeLine();
+
+	void RenderEditShotWindow();
+	bool showEditShotWindow = false;
+
+	void renderSavePack(Pack& pack);
+	void renderLoadPack();
+
 	
 
 	// Inherited via PluginWindow
-	/*
-
 	bool isWindowOpen_ = false;
 	bool isMinimized_ = false;
 	std::string menuTitle_ = "BotReplicateMoves";
@@ -138,12 +172,21 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	virtual void Render() override;
 	virtual std::string GetMenuName() override;
 	virtual std::string GetMenuTitle() override;
-	virtual void SetImGuiContext(uintptr_t ctx) override;
 	virtual bool ShouldBlockInput() override;
 	virtual bool IsActiveOverlay() override;
 	virtual void OnOpen() override;
 	virtual void OnClose() override;
 	
-	*/
+
+
+	//Popups
+	void renderInfoPopup(const char* popupName, const char* label);
+	void renderYesNoPopup(const char* popupName, const char* label, std::function<void()> yesFunc, std::function<void()> noFunc);
+	
+
+	//utils
+	void renderUnderLine(ImColor col_);
+	void CenterNexIMGUItItem(float itemWidth);
+	void AlignRightNexIMGUItItem(float itemWidth, float borderGap);
 };
 

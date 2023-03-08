@@ -32,9 +32,33 @@ void BotReplicateMoves::onLoad()
 			if (botCar.GetOwnerName() != caller.GetOwnerName())
 			{
 				playRecord = false;
-				LOG("a car hit ball so stop playing the record");
+				LOG("Player hit ball so stop playing the shot");
+
+				//if current shot is not last shot we setup the next one
+				LOG("selectedShot :  {}", selectedShot);
+				if (selectedShot + 1 <= CurrentPack.shots.size() - 1 && !SetupingShot)
+				{
+					SetupingShot = true;
+					if (!IsPlayingPack) return;
+					gameWrapper->SetTimeout([this](GameWrapper* gameWrapper) {
+						cvarManager->log("Setuping next shot...");
+						selectedShot++;
+						CurrentShot = CurrentPack.shots[selectedShot];
+						LOG("Next shot : {}", selectedShot);
+						cvarManager->executeCommand("replicatemoves_setshot");
+						}, 3);
+				}
+				
 			}
 		});
+
+
+	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.ReplayPlayback.EndState",
+		[this](std::string eventname) {
+			cvarManager->executeCommand("replicatemoves_nextshot");
+		});
+
+	
 
 	gameWrapper->HookEventPost("Function TAGame.Car_TA.SetVehicleInput", std::bind(&BotReplicateMoves::onTick, this, std::placeholders::_1));
 
@@ -85,6 +109,46 @@ void BotReplicateMoves::onLoad()
 			playRecord = false;
 
 		}, "", 0);
+	cvarManager->registerNotifier("replicatemoves_initplayerlocation", [&](std::vector<std::string> args)
+		{
+			if (RecordingPlayerInitLoc);
+
+			CarWrapper car = gameWrapper->GetLocalCar();
+			if (!car) return;
+
+			CurrentShot.InitLocation = car.GetLocation();
+			CurrentShot.InitRotation = car.GetRotation();
+			CurrentShot.InitVelocity = car.GetVelocity();
+			CurrentShot.InitAngularVelocity = car.GetAngularVelocity();
+
+			RecordingPlayerInitLoc = false;
+			LOG("Init player location set !");
+		}, "", 0);
+	cvarManager->registerNotifier("replicatemoves_setshot", [&](std::vector<std::string> args)
+		{
+			if (!IsPlayingPack) return;
+			tickCount = 0;
+			inputsIndex = 0;
+			botTeleported = false;
+			playRecord = true;
+			SetupingShot = true;
+			LOG("Shot {} set !", selectedShot);
+		}, "", 0);
+	cvarManager->registerNotifier("replicatemoves_nextshot", [&](std::vector<std::string> args)
+		{
+			if (!IsPlayingPack) return;
+			selectedShot++;
+			CurrentShot = CurrentPack.shots[selectedShot];
+			LOG("Next shot : {}", selectedShot);
+			cvarManager->executeCommand("replicatemoves_setshot");
+		}, "", 0);
+	cvarManager->registerNotifier("replicatemoves_previousshot", [&](std::vector<std::string> args)
+		{
+			if (!IsPlayingPack) return;
+			selectedShot -= 1;
+			CurrentShot = CurrentPack.shots[selectedShot];
+			LOG("Previous shot : {}", selectedShot);
+		}, "", 0);
 }
 
 
@@ -119,7 +183,7 @@ void BotReplicateMoves::onTick(std::string eventName)
 				cvarManager->log("RecordsList cleared");
 				cvarManager->log("Recording...");
 
-				RecordsList.clear();
+				CurrentShot.ticks.clear();
 
 
 				wasRecording = true;
@@ -130,6 +194,10 @@ void BotReplicateMoves::onTick(std::string eventName)
 				if (!carBoost.IsNull())
 				{
 					recordInitBoostAmount = carBoost.GetCurrentBoostAmount();
+				}
+				else
+				{
+					recordInitBoostAmount = 100.f;
 				}
 			}
 
@@ -148,7 +216,7 @@ void BotReplicateMoves::onTick(std::string eventName)
 			record.BallRotation = ball.GetRotation();
 			record.BallVelocity = ball.GetVelocity();
 
-			RecordsList.push_back(record);
+			CurrentShot.ticks.push_back(record);
 		}
 		else
 		{ 
@@ -157,11 +225,11 @@ void BotReplicateMoves::onTick(std::string eventName)
 
 
 
-		if (playRecord && !recording && RecordsList.size() > 0)
+		if (playRecord && !recording && CurrentShot.ticks.size() > 0)
 		{
-			if (botSpawned && botTeleported && inputsIndex < RecordsList.size()) //Set recorded inputs to the bot
+			if (botSpawned && botTeleported && inputsIndex < CurrentShot.ticks.size()) //Set recorded inputs to the bot
 			{
-				Record record = RecordsList.at(inputsIndex);
+				Record record = CurrentShot.ticks.at(inputsIndex);
 
 				CarWrapper botCar = sw.GetPRIs().Get(sw.GetPRIs().Count() - 1).GetCar();
 
@@ -196,7 +264,7 @@ void BotReplicateMoves::onTick(std::string eventName)
 					inputsIndex++;
 				}
 			}
-			else if (botSpawned && !botTeleported && tickCount > 200) //after 200 ticks, bot gets teleported
+			else if (botSpawned && !botTeleported && tickCount > 200) //after 200 ticks, bot gets teleported, the shot starts
 			{
 				CarWrapper botCar = sw.GetPRIs().Get(sw.GetPRIs().Count() - 1).GetCar();
 				if (UsePlayerCar)
@@ -224,8 +292,21 @@ void BotReplicateMoves::onTick(std::string eventName)
 				cvarManager->log("bot teleported !");
 				botTeleported = true;
 				inputsIndex = 0;
+
+				//Setup player
+				CarWrapper car = gameWrapper->GetLocalCar();
+				if (!car) return;
+				
+				car.SetLocation(CurrentShot.InitLocation);
+				car.SetRotation(CurrentShot.InitRotation);
+				car.SetVelocity(CurrentShot.InitVelocity);
+				car.SetAngularVelocity(CurrentShot.InitAngularVelocity, false);
+
+				LOG("Player is now setup !");
+
+				SetupingShot = false;
 			}
-			else if (inputsIndex == RecordsList.size())
+			else if (inputsIndex == CurrentShot.ticks.size())
 			{
 				playRecord = false;
 			}
@@ -289,11 +370,35 @@ void BotReplicateMoves::SaveActualRecord(std::vector<Record> recordsList)
 	LOG("saved actual record");
 }
 
-void BotReplicateMoves::LoadActualRecord(std::filesystem::path filePath)
+void BotReplicateMoves::LoadRecord(std::filesystem::path filePath)
 {
 	auto in = std::ifstream(filePath);
 	json asd_read_as_json = json::parse(in);
-	RecordsList = asd_read_as_json.get<std::vector<Record>>();
+	CurrentShot.ticks = asd_read_as_json.get<std::vector<Record>>();
+}
+
+void BotReplicateMoves::SavePack(Pack pack)
+{
+	//auto conversion to json
+	json asd_as_json = pack;
+
+	time_t now = time(0);
+	tm* ltm = localtime(&now);
+
+	std::string fileName = "Pack " + std::to_string(1900 + ltm->tm_year) + "." + std::to_string(1 + ltm->tm_mon) + "." + std::to_string(ltm->tm_mday) + " - " + std::to_string(ltm->tm_hour) + "." + std::to_string(ltm->tm_min) + "." + std::to_string(ltm->tm_sec) + ".json";
+
+	auto out_path = gameWrapper->GetDataFolder() / "BotReplicateMoves" / fileName;
+	create_directories(out_path.parent_path());
+	auto out = std::ofstream(out_path);
+	out << asd_as_json.dump();
+	LOG("saved actual pack");
+}
+
+void BotReplicateMoves::LoadPack(std::filesystem::path filePath)
+{
+	auto in = std::ifstream(filePath);
+	json asd_read_as_json = json::parse(in);
+	CurrentPack = asd_read_as_json.get<Pack>();
 }
 
 void BotReplicateMoves::InitGame(std::string eventName)
@@ -325,6 +430,26 @@ void BotReplicateMoves::RenderCanvas(CanvasWrapper canvas)
 		canvas.DrawString("Playing");
 	}
 
+	if (IsPlayingPack)
+	{
+		std::string shotsTxt = "Shot " + std::to_string(selectedShot + 1) + " / " + std::to_string(CurrentPack.shots.size());
+
+		canvas.SetPosition(Vector2{ 5, 50 });
+		canvas.SetColor(LinearColor{ 255, 255, 255, 255 });
+		canvas.DrawString(shotsTxt, 8.f, 8.f);
+	}
+
+}
+
+bool BotReplicateMoves::Directory_Or_File_Exists(const std::filesystem::path& p, std::filesystem::file_status s)
+{
+	bool DirectoryExists;
+	if (std::filesystem::status_known(s) ? std::filesystem::exists(s) : std::filesystem::exists(p))
+		DirectoryExists = true;
+	else
+		DirectoryExists = false;
+
+	return DirectoryExists;
 }
 
 
