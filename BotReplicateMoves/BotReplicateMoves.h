@@ -25,26 +25,30 @@ struct MyControllerInput
 	unsigned long Jumped;
 };
 
-struct Player
-{
-	bool recording = false;
-};
-
-struct PlayerTick
+struct BotTick
 {
 	MyControllerInput Input;
 	Vector Location;
 	Rotator Rotation;
 	Vector Velocity;
-
-	int botIndex = 0;
 };
 
-
-struct Tick
+struct Bot
 {
-	std::vector<PlayerTick> playersTick;
+	bool recording = false;
+	bool replaying = false;
+	int botIndex = 0;
+	Vector2 StartEndIndexes = {0, 0};
+	std::vector<BotTick> ticks;
 
+	Bot(){}
+	Bot(int _botIndex) {
+		botIndex = _botIndex;
+	}
+};
+
+struct BallTick
+{
 	Vector BallLocation;
 	Rotator BallRotation;
 	Vector BallVelocity;
@@ -52,14 +56,19 @@ struct Tick
 
 struct Shot
 {
+	int ticksCount = 0;
+
 	Vector InitLocation = { 0, 0, 0 };
 	Rotator InitRotation = { 0, 0, 0 };
 	Vector InitVelocity = { 0, 0, 0 };
 	Vector InitAngularVelocity = { 0, 0, 0 };
 
-	std::vector<Tick> ticks;
+	std::vector<Bot> bots = { Bot(0) };
+	std::vector<BallTick> ballTicks;
 
-	std::vector<Player> players;
+	int GetTicksCount() {
+		return ballTicks.size();
+	}
 };
 
 struct Pack
@@ -72,11 +81,12 @@ struct Pack
 //magic macro that defines serialize\deserialize functions automagically
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(MyControllerInput, Throttle, Steer, Pitch, Yaw, Roll, DodgeForward, DodgeStrafe, Handbrake, Jump, ActivateBoost, HoldingBoost, Jumped)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Vector, X, Y, Z)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Vector2, X, Y)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Rotator, Pitch, Yaw, Roll)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Player, recording)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PlayerTick, Input, Location, Rotation, Velocity, botIndex)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Tick, playersTick, BallLocation, BallRotation, BallVelocity)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Shot, InitLocation, InitRotation, InitVelocity, InitAngularVelocity, ticks, players)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BotTick, Input, Location, Rotation, Velocity)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Bot, recording, replaying, botIndex, StartEndIndexes, ticks)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BallTick, BallLocation, BallRotation, BallVelocity)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Shot, ticksCount, InitLocation, InitRotation, InitVelocity, InitAngularVelocity, bots, ballTicks)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Pack, name, shots)
 
 /*
@@ -136,6 +146,7 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	bool playRecord = false;
 	bool botSpawned = false;
 	bool botTeleported = false;
+	bool replaying = false;
 
 	bool IsPlayingPack = false;
 
@@ -156,8 +167,8 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 
 
 
-	void SaveActualRecord(std::vector<Tick> recordsList);
-	void LoadRecord(std::filesystem::path filePath);
+	//void SaveActualRecord(std::vector<Tick> recordsList);
+	//void LoadRecord(std::filesystem::path filePath);
 	void SavePack(Pack pack);
 	void LoadPack(std::filesystem::path filePath);
 
@@ -165,7 +176,7 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	std::string dataPath = gameWrapper->GetDataFolder().string() + "\\BotReplicateMoves\\";
 
 
-	void onTick(std::string eventName);
+	void onTick(CarWrapper caller, void* params, std::string eventname);
 	void InitGame(std::string eventName);
 
 	bool Directory_Or_File_Exists(const std::filesystem::path& p, std::filesystem::file_status s = std::filesystem::file_status{});

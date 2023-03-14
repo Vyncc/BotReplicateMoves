@@ -34,14 +34,14 @@ void BotReplicateMoves::RenderSettings()
 
 
 	ImGui::Checkbox("UseTimeLine", &UseTimeLine);
-	ImGui::SliderInt("Timeline", &inputsIndex, 0, CurrentShot.ticks.size() - 1);
+	ImGui::SliderInt("Timeline", &inputsIndex, 0, CurrentShot.GetTicksCount() - 1);
 
 	ImGui::NewLine();
 
 
 	if (ImGui::Button("Save data"))
 	{
-		SaveActualRecord(CurrentShot.ticks);
+		//SaveActualRecord(CurrentShot.ticks);
 	}
 
 	if (ImGui::Button("Open Timeline"))
@@ -102,7 +102,7 @@ void BotReplicateMoves::RenderSettings()
 		playRecord = false;
 	}
 
-	ImGui::Text("RecordedInputs Count : %d", CurrentShot.ticks.size());
+	ImGui::Text("RecordedInputs Count : %d", CurrentShot.GetTicksCount());
 
 	ImGui::NextColumn();
 
@@ -121,7 +121,7 @@ void BotReplicateMoves::RenderFileList()
 		{
 			if (ImGui::Selectable(file.path().filename().string().c_str()))
 			{
-				LoadRecord(file.path());
+				//LoadRecord(file.path());
 				LOG("Loaded file : {}", file.path().filename().string());
 			}
 		}
@@ -282,50 +282,42 @@ void BotReplicateMoves::RenderEditShotWindow()
 	ImGui::NewLine();
 
 	ImGui::Separator();
-	ImGui::Text("Bot 0");
 
-	if (ImGui::Button("Start recording", ImVec2(100.f, 30.f)))
-	{
-		recording = true;
-	}
-
-	ImGui::SameLine();
-
-	if (ImGui::Button("Stop recording", ImVec2(100.f, 30.f)))
-	{
-		recording = false;
-	}
-
-
-	ImGui::Separator();
-
-	for (int n = 0; n < CurrentShot.players.size(); n++)
+	for (int n = 0; n < CurrentShot.bots.size(); n++)
 	{
 		ImGui::PushID(n);
-		Player& player = CurrentShot.players[n];
+		Bot& bot = CurrentShot.bots[n];
 
-		ImGui::Text("Bot %d", n + 1);
+		ImGui::Text("Bot %d", n);
 
 		if (ImGui::Button("Start recording", ImVec2(100.f, 30.f)))
 		{
-			player.recording = true;
+			bot.recording = true;
+			if (bot.botIndex != 0)
+			{
+				tickCount = 0;
+				inputsIndex = 0;
+				botTeleported = false;
+				playRecord = true;
 
-			tickCount = 0;
-			inputsIndex = 0;
-			botTeleported = false;
-			playRecord = true;
+				bot.StartEndIndexes.X = 0;
+			}
+
+
 		}
 
 		ImGui::SameLine();
 
 		if (ImGui::Button("Stop recording", ImVec2(100.f, 30.f)))
 		{
-			player.recording = false;
+			bot.recording = false;
+			bot.StartEndIndexes.Y = bot.StartEndIndexes.X + bot.ticks.size() - 1;
+			LOG("StartEndIndexes.Y : {}", bot.StartEndIndexes.Y);
 		}
 
 		if (ImGui::Button("Delete"))
 		{
-			CurrentShot.players.erase(CurrentShot.players.begin() + n);
+			CurrentShot.bots.erase(CurrentShot.bots.begin() + n);
 		}
 
 		ImGui::PopID();
@@ -336,7 +328,7 @@ void BotReplicateMoves::RenderEditShotWindow()
 
 	if (ImGui::Button("Add Bot"))
 	{
-		CurrentShot.players.push_back(Player());
+		CurrentShot.bots.push_back(Bot(CurrentShot.bots.size()));
 	}
 
 	ImGui::Separator();
@@ -367,7 +359,7 @@ void BotReplicateMoves::RenderEditShotWindow()
 
 
 	ImGui::Checkbox("UseTimeLine", &UseTimeLine);
-	ImGui::SliderInt("Timeline", &inputsIndex, 0, CurrentShot.ticks.size() - 1);
+	ImGui::SliderInt("Timeline", &inputsIndex, 0, CurrentShot.GetTicksCount() - 1);
 
 
 	std::string loc = std::to_string(CurrentShot.InitLocation.X) + ", " + std::to_string(CurrentShot.InitLocation.Y) + ", " + std::to_string(CurrentShot.InitLocation.Z);
@@ -377,7 +369,7 @@ void BotReplicateMoves::RenderEditShotWindow()
 	std::string vel = std::to_string(CurrentShot.InitVelocity.X) + ", " + std::to_string(CurrentShot.InitVelocity.Y) + ", " + std::to_string(CurrentShot.InitVelocity.Z);
 	ImGui::Text(vel.c_str());
 
-	if (CurrentShot.ticks.size() != 0)
+	if (CurrentShot.GetTicksCount() != 0)
 	{
 		if (ImGui::Button("Play", ImVec2(100.f, 30.f)))
 		{
@@ -397,7 +389,7 @@ void BotReplicateMoves::RenderEditShotWindow()
 
 	ImGui::NewLine();
 
-	ImGui::Text("RecordedInputs Count : %d", CurrentShot.ticks.size());
+	ImGui::Text("RecordedInputs Count : %d", CurrentShot.GetTicksCount());
 
 	ImGui::NewLine();
 
