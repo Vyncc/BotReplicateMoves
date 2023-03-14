@@ -25,13 +25,25 @@ struct MyControllerInput
 	unsigned long Jumped;
 };
 
+struct Player
+{
+	bool recording = false;
+};
 
-struct Record
+struct PlayerTick
 {
 	MyControllerInput Input;
 	Vector Location;
 	Rotator Rotation;
 	Vector Velocity;
+
+	int botIndex = 0;
+};
+
+
+struct Tick
+{
+	std::vector<PlayerTick> playersTick;
 
 	Vector BallLocation;
 	Rotator BallRotation;
@@ -45,7 +57,9 @@ struct Shot
 	Vector InitVelocity = { 0, 0, 0 };
 	Vector InitAngularVelocity = { 0, 0, 0 };
 
-	std::vector<Record> ticks;
+	std::vector<Tick> ticks;
+
+	std::vector<Player> players;
 };
 
 struct Pack
@@ -59,8 +73,10 @@ struct Pack
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(MyControllerInput, Throttle, Steer, Pitch, Yaw, Roll, DodgeForward, DodgeStrafe, Handbrake, Jump, ActivateBoost, HoldingBoost, Jumped)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Vector, X, Y, Z)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Rotator, Pitch, Yaw, Roll)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Record, Input, Location, Rotation, Velocity, BallLocation, BallRotation, BallVelocity)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Shot, InitLocation, InitRotation, InitVelocity, InitAngularVelocity, ticks)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Player, recording)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PlayerTick, Input, Location, Rotation, Velocity, botIndex)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Tick, playersTick, BallLocation, BallRotation, BallVelocity)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Shot, InitLocation, InitRotation, InitVelocity, InitAngularVelocity, ticks, players)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Pack, name, shots)
 
 /*
@@ -90,6 +106,13 @@ void from_json(const json& j, Record& record)
 }
 */
 
+enum RecordingNewAttackerState
+{
+	NOTRECORDING = -1,
+	SETUPINGBOT = 0,
+	RECORDING = 1
+};
+
 
 
 class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public BakkesMod::Plugin::PluginSettingsWindow, public BakkesMod::Plugin::PluginWindow
@@ -116,6 +139,8 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 
 	bool IsPlayingPack = false;
 
+	int RecordingPlayerIndex = 0;
+
 	Vector recordInitLocation;
 	Rotator recordInitRotation;
 	Vector recordInitVelocity;
@@ -131,7 +156,7 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 
 
 
-	void SaveActualRecord(std::vector<Record> recordsList);
+	void SaveActualRecord(std::vector<Tick> recordsList);
 	void LoadRecord(std::filesystem::path filePath);
 	void SavePack(Pack pack);
 	void LoadPack(std::filesystem::path filePath);

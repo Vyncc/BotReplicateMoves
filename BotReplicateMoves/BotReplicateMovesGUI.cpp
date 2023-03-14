@@ -281,6 +281,8 @@ void BotReplicateMoves::RenderEditShotWindow()
 
 	ImGui::NewLine();
 
+	ImGui::Separator();
+	ImGui::Text("Bot 0");
 
 	if (ImGui::Button("Start recording", ImVec2(100.f, 30.f)))
 	{
@@ -293,6 +295,51 @@ void BotReplicateMoves::RenderEditShotWindow()
 	{
 		recording = false;
 	}
+
+
+	ImGui::Separator();
+
+	for (int n = 0; n < CurrentShot.players.size(); n++)
+	{
+		ImGui::PushID(n);
+		Player& player = CurrentShot.players[n];
+
+		ImGui::Text("Bot %d", n + 1);
+
+		if (ImGui::Button("Start recording", ImVec2(100.f, 30.f)))
+		{
+			player.recording = true;
+
+			tickCount = 0;
+			inputsIndex = 0;
+			botTeleported = false;
+			playRecord = true;
+		}
+
+		ImGui::SameLine();
+
+		if (ImGui::Button("Stop recording", ImVec2(100.f, 30.f)))
+		{
+			player.recording = false;
+		}
+
+		if (ImGui::Button("Delete"))
+		{
+			CurrentShot.players.erase(CurrentShot.players.begin() + n);
+		}
+
+		ImGui::PopID();
+
+
+		ImGui::Separator();
+	}
+
+	if (ImGui::Button("Add Bot"))
+	{
+		CurrentShot.players.push_back(Player());
+	}
+
+	ImGui::Separator();
 
 
 	std::string RecordingPlayerInitText = "Start recording player init";

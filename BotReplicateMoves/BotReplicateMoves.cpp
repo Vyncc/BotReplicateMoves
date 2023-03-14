@@ -22,14 +22,10 @@ void BotReplicateMoves::onLoad()
 	gameWrapper->HookEventWithCaller<CarWrapper>("Function TAGame.Car_TA.OnHitBall",
 		[this](CarWrapper caller, void* params, std::string eventname) {
 
-			ServerWrapper sw = gameWrapper->GetCurrentGameState();
-			if (sw.IsNull()) { return; }
+			CarWrapper myCar = gameWrapper->GetLocalCar();
+			if (!myCar || !caller) { return; }
 
-			CarWrapper botCar = sw.GetPRIs().Get(sw.GetPRIs().Count() - 1).GetCar();
-			if (UsePlayerCar){ botCar = gameWrapper->GetLocalCar(); }
-			if (!botCar || !caller) { return; }
-
-			if (botCar.GetOwnerName() != caller.GetOwnerName())
+			if (myCar.memory_address == caller.memory_address) //if the car that hits the ball is the player then we stop replaying the shot
 			{
 				playRecord = false;
 				LOG("Player hit ball so stop playing the shot");
@@ -206,17 +202,20 @@ void BotReplicateMoves::onTick(std::string eventName)
 			MyControllerInput myinputs;
 			SetMyInputs(myinputs, inputs);
 
-			Record record;
-			record.Input = myinputs;
-			record.Location = car.GetLocation();
-			record.Rotation = car.GetRotation();
-			record.Velocity = car.GetVelocity();
+			Tick tick;
+			PlayerTick playerTick;
+			playerTick.Input = myinputs;
+			playerTick.Location = car.GetLocation();
+			playerTick.Rotation = car.GetRotation();
+			playerTick.Velocity = car.GetVelocity();
+			playerTick.botIndex = 0;
 
-			record.BallLocation = ball.GetLocation();
-			record.BallRotation = ball.GetRotation();
-			record.BallVelocity = ball.GetVelocity();
+			tick.BallLocation = ball.GetLocation();
+			tick.BallRotation = ball.GetRotation();
+			tick.BallVelocity = ball.GetVelocity();
 
-			CurrentShot.ticks.push_back(record);
+			tick.playersTick.push_back(playerTick);
+			CurrentShot.ticks.push_back(tick);
 		}
 		else
 		{ 
@@ -225,68 +224,92 @@ void BotReplicateMoves::onTick(std::string eventName)
 
 
 
+
 		if (playRecord && !recording && CurrentShot.ticks.size() > 0)
 		{
 			if (botSpawned && botTeleported && inputsIndex < CurrentShot.ticks.size()) //Set recorded inputs to the bot
 			{
-				Record record = CurrentShot.ticks.at(inputsIndex);
+				Tick tick = CurrentShot.ticks.at(inputsIndex);
+				LOG("InputIndex replay : {}", inputsIndex);
 
-				CarWrapper botCar = sw.GetPRIs().Get(sw.GetPRIs().Count() - 1).GetCar();
-
-				if (UsePlayerCar)
+				ArrayWrapper<PriWrapper> pris = sw.GetPRIs();
+				if (pris.Count() > 1)
 				{
-					botCar = gameWrapper->GetLocalCar();
-				}
+					int botCount = 0;
+					for (PriWrapper pri : pris)
+					{
+						if (!pri) continue;
+						if (!pri.GetbBot()) continue; //if not bot
+						CarWrapper botCar = pri.GetCar();
 
-				if (!botCar.IsNull())
-				{
-					botCar.SetLocation(record.Location);
-					botCar.SetRotation(record.Rotation);
-					botCar.SetVelocity(record.Velocity);
+						/*if (UsePlayerCar)
+						{
+							botCar = gameWrapper->GetLocalCar();
+						}*/
 
-					MyControllerInput myinputs = record.Input;
-					ControllerInput inputs;
-					SetInputs(inputs, myinputs);
-					botCar.SetInput(inputs);
-				}
-				
-				BallWrapper ball = sw.GetBall();
-				if (!ball.IsNull())
-				{
-					ball.SetLocation(record.BallLocation);
-					ball.SetRotation(record.BallRotation);
-					ball.SetVelocity(record.BallVelocity);
-				}
+						if (!botCar.IsNull())
+						{
+							PlayerTick playerTick;
+							bool isGoodBot = false;
+							for (int i = 0; i < tick.playersTick.size(); i++)
+							{
+								PlayerTick p = tick.playersTick[i];
+								if (p.botIndex == botCount)
+								{
+									isGoodBot = true;
+									playerTick = p;
+									break;
+								}
+							}
 
+							if (isGoodBot)
+							{
+								botCar.SetLocation(playerTick.Location);
+								LOG("{} Location : {} | {} | {}", pri.GetPlayerName().ToString(), playerTick.Location.X, playerTick.Location.Y, playerTick.Location.Z);
+								botCar.SetRotation(playerTick.Rotation);
+								botCar.SetVelocity(playerTick.Velocity);
 
-				if (!UseTimeLine)
-				{
-					inputsIndex++;
+								MyControllerInput myinputs = playerTick.Input;
+								ControllerInput inputs;
+								SetInputs(inputs, myinputs);
+								botCar.SetInput(inputs);
+							}
+						}
+
+						BallWrapper ball = sw.GetBall();
+						if (!ball.IsNull())
+						{
+							ball.SetLocation(tick.BallLocation);
+							ball.SetRotation(tick.BallRotation);
+							ball.SetVelocity(tick.BallVelocity);
+						}
+
+						botCount++;
+					}
+
+					LOG("replaying....");
+
+					if (!UseTimeLine)
+					{
+						inputsIndex++;
+					}
 				}
 			}
 			else if (botSpawned && !botTeleported && tickCount > 200) //after 200 ticks, bot gets teleported, the shot starts
 			{
-				CarWrapper botCar = sw.GetPRIs().Get(sw.GetPRIs().Count() - 1).GetCar();
-				if (UsePlayerCar)
+				ArrayWrapper<PriWrapper> pris = sw.GetPRIs();
+				if (pris.Count() > 1)
 				{
-					botCar = gameWrapper->GetLocalCar();
-				}
+					int botCount = 0;
+					for (PriWrapper pri : pris)
+					{
+						if (!pri) continue;
+						if (!pri.GetbBot()) continue; //if not bot
+						CarWrapper botCar = pri.GetCar();
 
-				if (!UsePlayerCar)
-				{
-					botCar.GetAIController().DoNothing();
+						botCar.GetAIController().DoNothing();
+					}
 				}
-				botCar.SetRotation(recordInitRotation);
-				botCar.SetLocation(recordInitLocation);
-				//botCar.SetVelocity(recordInitVelocity);
-				BoostWrapper BoostBot = botCar.GetBoostComponent();
-				if (!BoostBot.IsNull())
-				{
-					BoostBot.SetBoostAmount(recordInitBoostAmount);
-				}
-
-
-				cvarManager->log("car body : " + std::to_string(botCar.GetLoadoutBody()));
 
 
 				cvarManager->log("bot teleported !");
@@ -315,9 +338,63 @@ void BotReplicateMoves::onTick(std::string eventName)
 				std::string botname = "ReplicatingMyMoves";
 				sw.SpawnBot(4284, botname);
 				cvarManager->log("bot spawned : " + botname);
+
+				for (int n = 0; n < CurrentShot.players.size(); n++)
+				{
+					std::string botname = "ReplicatingMyMoves" + std::to_string(n);
+					sw.SpawnBot(4284, botname);
+					cvarManager->log("bot spawned : " + botname);
+				}
+
 				botSpawned = true;
 			}
 			tickCount++;
+		}
+
+
+
+		for (int n = 0; n < CurrentShot.players.size(); n++)
+		{
+			Player& player = CurrentShot.players[n];
+			if (player.recording && (botSpawned && botTeleported && inputsIndex >= 1)) //if recording and replaying other bots
+			{
+				CarWrapper car = gameWrapper->GetLocalCar();
+				if (!car) { return; }
+
+				BallWrapper ball = sw.GetBall();
+				if (!ball) { return; }
+
+
+				ControllerInput inputs = car.GetInput();
+				MyControllerInput myinputs;
+				SetMyInputs(myinputs, inputs);
+
+				Tick tick;
+				PlayerTick playerTick;
+				playerTick.Input = myinputs;
+				playerTick.Location = car.GetLocation();
+				playerTick.Rotation = car.GetRotation();
+				playerTick.Velocity = car.GetVelocity();
+				playerTick.botIndex = n + 1;
+
+				tick.playersTick.push_back(playerTick);
+
+				tick.BallLocation = ball.GetLocation();
+				tick.BallRotation = ball.GetRotation();
+				tick.BallVelocity = ball.GetVelocity();
+
+				if (inputsIndex >= CurrentShot.ticks.size() || !playRecord)
+				{
+					CurrentShot.ticks.push_back(tick);
+					playRecord = false;
+					LOG("pushback");
+				}
+				else
+				{
+					CurrentShot.ticks[inputsIndex - 1].playersTick.push_back(playerTick);
+					LOG("replacing");
+				}
+			}
 		}
 	}
 }
@@ -353,7 +430,7 @@ void BotReplicateMoves::SetInputs(ControllerInput& inputs, MyControllerInput myi
 	inputs.Jumped = myinputs.Jumped;
 }
 
-void BotReplicateMoves::SaveActualRecord(std::vector<Record> recordsList)
+void BotReplicateMoves::SaveActualRecord(std::vector<Tick> recordsList)
 {
 	//auto conversion to json
 	json asd_as_json = recordsList;
@@ -374,7 +451,7 @@ void BotReplicateMoves::LoadRecord(std::filesystem::path filePath)
 {
 	auto in = std::ifstream(filePath);
 	json asd_read_as_json = json::parse(in);
-	CurrentShot.ticks = asd_read_as_json.get<std::vector<Record>>();
+	CurrentShot.ticks = asd_read_as_json.get<std::vector<Tick>>();
 }
 
 void BotReplicateMoves::SavePack(Pack pack)
