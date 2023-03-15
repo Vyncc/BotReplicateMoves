@@ -213,9 +213,20 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	void RenderEditShotWindow();
 	bool showEditShotWindow = false;
 
+
 	void renderSavePack(Pack& pack);
 	void renderLoadPack();
 
+
+	//Trim Shot
+	void renderTrimShot();
+	bool showTrimShot = false;
+	void renderTimeLine();
+	void renderTimeLineBackground();
+	void renderLine(ImVec2 origin, ImVec2 end);
+	void renderBotTimeLine(std::string botName, ImVec2 size);
+	void renderBallTimeLine();
+	void renderRectangle(ImVec2 size);
 	
 
 	// Inherited via PluginWindow
@@ -231,7 +242,6 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	virtual void OnOpen() override;
 	virtual void OnClose() override;
 	
-
 
 	//Popups
 	void renderInfoPopup(const char* popupName, const char* label);

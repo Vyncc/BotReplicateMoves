@@ -404,12 +404,26 @@ void BotReplicateMoves::RenderEditShotWindow()
 		{
 			playRecord = false;
 			replaying = false;
+			for (Bot& b : CurrentShot.bots)
+			{
+				b.replaying = false;
+			}
 		}
 	}
 
 	ImGui::NewLine();
 
 	ImGui::Text("Ball Ticks Count : %d", CurrentShot.GetTicksCount());
+
+	ImGui::NewLine();
+
+	if (ImGui::Button("Trim Shot", ImVec2(100.f, 30.f)))
+	{
+		showTrimShot = true;
+	}
+
+	if (showTrimShot)
+		renderTrimShot();
 
 	ImGui::NewLine();
 
@@ -430,6 +444,142 @@ void BotReplicateMoves::RenderEditShotWindow()
 
 	ImGui::End();
 
+}
+
+void BotReplicateMoves::renderTrimShot()
+{
+	if (!ImGui::Begin("Trim Shot", &showTrimShot, ImGuiWindowFlags_None)) {
+		ImGui::End();
+		return;
+	}
+
+	static float widthTest = 100.f;
+	static float heightTest = 50.f;
+	ImGui::SliderFloat("widthTest", &widthTest, 0.f, 800.f);
+	ImGui::SliderFloat("heightTest", &heightTest, 0.f, 800.f);
+	ImVec2 size(widthTest, heightTest);
+
+	
+	ImGui::Text("inputsIndex : %d", inputsIndex);
+
+	renderTimeLine();
+
+
+	if (ImGui::Button("Cancel", ImVec2(100.f, 30.f)))
+	{
+		showTrimShot = false;
+		ImGui::CloseCurrentPopup();
+	}
+	ImGui::SameLine();
+
+	if (ImGui::Button("Cancel", ImVec2(100.f, 30.f)))
+	{
+		showTrimShot = false;
+		ImGui::CloseCurrentPopup();
+	}
+
+
+	ImGui::End();
+}
+
+void BotReplicateMoves::renderTimeLine()
+{
+	//ImGui::Checkbox("Use TimeLine", &UseTimeLine);
+
+	ImVec2 LineOrigin = ImGui::GetCursorScreenPos();
+	renderTimeLineBackground();
+
+	renderBallTimeLine();
+	for (int i = 0; i < CurrentShot.bots.size(); i++)
+	{
+		Bot& bot = CurrentShot.bots[i];
+		float botTimeLineWidthPercentage = 0.f;
+		if (CurrentShot.ballTicks.size() > 0)
+			botTimeLineWidthPercentage = float(bot.ticks.size()) / float(CurrentShot.ballTicks.size());
+		float botTimeLineWidth = 300.f * botTimeLineWidthPercentage;
+		ImGui::PushID(i);
+		renderBotTimeLine(std::string("Bot " + std::to_string(i)), ImVec2(botTimeLineWidth, 38.f));
+		ImGui::PopID();
+	}
+	ImVec2 LineEnd = ImGui::GetCursorScreenPos();
+	renderLine(LineOrigin, LineEnd);
+}
+
+void BotReplicateMoves::renderTimeLineBackground()
+{
+	ImDrawList* draw_list = ImGui::GetWindowDrawList();
+	ImVec2 TopCornerLeft = ImGui::GetCursorScreenPos();
+	ImVec2 RectFilled_p_max = ImVec2(TopCornerLeft.x + 407.f, TopCornerLeft.y + 30.f + ((CurrentShot.bots.size() + 1) * 42.f));
+	draw_list->AddRectFilled(TopCornerLeft, RectFilled_p_max, ImColor(213, 213, 213, 100), 0.f);
+
+	ImGui::SetCursorScreenPos(ImVec2(TopCornerLeft.x + 2.f, TopCornerLeft.y + 30.f));
+
+}
+
+void BotReplicateMoves::renderLine(ImVec2 origin, ImVec2 end)
+{
+	ImDrawList* draw_list = ImGui::GetWindowDrawList();
+	ImVec2 bottom = ImGui::GetCursorScreenPos();
+	float LinePosPercentage = 0.f;
+	if (CurrentShot.ballTicks.size() > 0)
+		LinePosPercentage = float(inputsIndex) / CurrentShot.ballTicks.size();
+	LOG("LinePosPercentage : {}", LinePosPercentage);
+	float LinePos = 300.f * LinePosPercentage; //300 = la largeur de la timeLine
+	LOG("LinePos : {}", LinePos);
+	ImGui::SetCursorScreenPos(ImVec2(origin.x + 100.f + LinePos, origin.y));
+	ImVec2 TopCornerLeft = ImGui::GetCursorScreenPos();
+	ImVec2 RectFilled_p_max = ImVec2(TopCornerLeft.x, end.y);
+
+	draw_list->AddLine(TopCornerLeft, RectFilled_p_max, ImColor(255, 255, 255, 255), 1.f);
+	ImGui::SetCursorScreenPos(ImVec2(TopCornerLeft.x - 100.f - LinePos, bottom.y));
+}
+
+void BotReplicateMoves::renderBallTimeLine()
+{
+	ImGui::BeginGroup();
+	ImDrawList* draw_list = ImGui::GetWindowDrawList();
+	ImVec2 TopCornerLeft = ImGui::GetCursorScreenPos();
+	ImVec2 RectFilled_p_max = ImVec2(TopCornerLeft.x + 94.f, TopCornerLeft.y + 38.f);
+	draw_list->AddRectFilled(TopCornerLeft, RectFilled_p_max, ImColor(44, 75, 113, 255), 0.f);
+
+	ImGui::SetCursorScreenPos(ImVec2(TopCornerLeft.x + 10.f, TopCornerLeft.y + 10.f));
+	ImGui::Text("Ball");
+	ImGui::SameLine();
+	ImGui::SetCursorScreenPos(ImVec2(TopCornerLeft.x + 100.f, TopCornerLeft.y));
+	renderRectangle(ImVec2(300.f, 38.f));
+	ImGui::EndGroup();
+
+	ImGui::SetCursorScreenPos(ImVec2(TopCornerLeft.x, RectFilled_p_max.y + 4.f));
+}
+
+void BotReplicateMoves::renderBotTimeLine(std::string botName, ImVec2 size)
+{
+	ImGui::BeginGroup();
+	ImDrawList* draw_list = ImGui::GetWindowDrawList();
+	ImVec2 TopCornerLeft = ImGui::GetCursorScreenPos();
+	ImVec2 RectFilled_p_max = ImVec2(TopCornerLeft.x + 94.f, TopCornerLeft.y + 38.f);
+	draw_list->AddRectFilled(TopCornerLeft, RectFilled_p_max, ImColor(44, 75, 113, 255), 0.f);
+
+	ImGui::SetCursorScreenPos(ImVec2(TopCornerLeft.x + 10.f, TopCornerLeft.y + 10.f));
+	ImGui::Text(botName.c_str());
+	ImGui::SameLine();
+	ImGui::SetCursorScreenPos(ImVec2(TopCornerLeft.x + 100.f, TopCornerLeft.y));
+	renderRectangle(ImVec2(size.x, size.y));
+	ImGui::EndGroup();
+
+	ImGui::SetCursorScreenPos(ImVec2(TopCornerLeft.x, RectFilled_p_max.y + 4.f));
+}
+
+
+void BotReplicateMoves::renderRectangle(ImVec2 size)
+{
+	ImGui::BeginGroup();
+	ImDrawList* draw_list = ImGui::GetWindowDrawList();
+	ImVec2 TopCornerLeft = ImGui::GetCursorScreenPos();
+	ImVec2 RectFilled_p_max = ImVec2(TopCornerLeft.x + size.x, TopCornerLeft.y + size.y);
+	draw_list->AddRectFilled(TopCornerLeft, RectFilled_p_max, ImColor(44, 75, 113, 255), 0.f);
+	ImGui::EndGroup();
+	ImGui::SetCursorScreenPos(ImVec2(TopCornerLeft.x, RectFilled_p_max.y + 8.f));
 }
 
 
