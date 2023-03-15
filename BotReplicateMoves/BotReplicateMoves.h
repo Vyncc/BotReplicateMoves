@@ -45,6 +45,24 @@ struct Bot
 	Bot(int _botIndex) {
 		botIndex = _botIndex;
 	}
+
+	/*bool operator==(const Bot& other) const {
+		return (recording == other.recording &&
+			replaying == other.replaying &&
+			botIndex == other.botIndex &&
+			StartEndIndexes.X == other.StartEndIndexes.X &&
+			StartEndIndexes.Y == other.StartEndIndexes.Y &&
+			ticks == other.ticks);
+	}
+	
+	bool operator!=(const Bot& other) const {
+		return (recording != other.recording ||
+			replaying != other.replaying ||
+			botIndex != other.botIndex ||
+			StartEndIndexes.X != other.StartEndIndexes.X ||
+			StartEndIndexes.Y != other.StartEndIndexes.Y ||
+			ticks != other.ticks);
+	}*/
 };
 
 struct BallTick

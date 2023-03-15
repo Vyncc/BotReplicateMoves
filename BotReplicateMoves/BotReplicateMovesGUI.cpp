@@ -299,8 +299,15 @@ void BotReplicateMoves::RenderEditShotWindow()
 				inputsIndex = 0;
 				botTeleported = false;
 				playRecord = true;
+				replaying = false;
 
 				bot.StartEndIndexes.X = 0;
+
+				for (Bot& b : CurrentShot.bots)
+				{
+					if(b.botIndex != bot.botIndex)
+						b.replaying = true;
+				}
 			}
 
 
@@ -313,12 +320,19 @@ void BotReplicateMoves::RenderEditShotWindow()
 			bot.recording = false;
 			bot.StartEndIndexes.Y = bot.StartEndIndexes.X + bot.ticks.size() - 1;
 			LOG("StartEndIndexes.Y : {}", bot.StartEndIndexes.Y);
+
+			for (Bot& b : CurrentShot.bots)
+			{
+				b.replaying = false;
+			}
 		}
 
 		if (ImGui::Button("Delete"))
 		{
 			CurrentShot.bots.erase(CurrentShot.bots.begin() + n);
 		}
+
+		ImGui::Text("Bot Ticks Count : %d", bot.ticks.size());
 
 		ImGui::PopID();
 
@@ -377,6 +391,11 @@ void BotReplicateMoves::RenderEditShotWindow()
 			inputsIndex = 0;
 			botTeleported = false;
 			playRecord = true;
+
+			for (Bot& b : CurrentShot.bots)
+			{
+				b.replaying = true;
+			}
 		}
 
 		ImGui::SameLine();
@@ -384,12 +403,13 @@ void BotReplicateMoves::RenderEditShotWindow()
 		if (ImGui::Button("Stop Playing", ImVec2(100.f, 30.f)))
 		{
 			playRecord = false;
+			replaying = false;
 		}
 	}
 
 	ImGui::NewLine();
 
-	ImGui::Text("RecordedInputs Count : %d", CurrentShot.GetTicksCount());
+	ImGui::Text("Ball Ticks Count : %d", CurrentShot.GetTicksCount());
 
 	ImGui::NewLine();
 

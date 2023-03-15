@@ -190,6 +190,7 @@ void BotReplicateMoves::onTick(CarWrapper caller, void* params, std::string even
 						Bot& bot = CurrentShot.bots[n];
 
 						if (bot.botIndex != botCount) continue;
+						if (!bot.replaying) continue;
 
 						if (inputsIndex >= bot.StartEndIndexes.X && inputsIndex <= bot.StartEndIndexes.Y)
 						{
@@ -265,6 +266,12 @@ void BotReplicateMoves::onTick(CarWrapper caller, void* params, std::string even
 		else if (inputsIndex == CurrentShot.GetTicksCount())
 		{
 			playRecord = false;
+			replaying = false;
+
+			for (Bot& b : CurrentShot.bots)
+			{
+				b.replaying = false;
+			}
 		}
 		else if (!botSpawned) //spawns bot
 		{
@@ -301,11 +308,6 @@ void BotReplicateMoves::onTick(CarWrapper caller, void* params, std::string even
 			ballTick.BallRotation = ball.GetRotation();
 			ballTick.BallVelocity = ball.GetVelocity();
 
-			if (bot.botIndex == 0 || bot.ticks.size() > CurrentShot.ballTicks.size())
-			{
-				CurrentShot.ballTicks.push_back(ballTick);
-				playRecord = false;
-			}
 			/*else if (bot.botIndex != 0 && bot.ticks.size() < CurrentShot.ballTicks.size() && replaying)
 			{
 				CurrentShot.ballTicks[inputsIndex - 1] = ballTick;
@@ -322,7 +324,23 @@ void BotReplicateMoves::onTick(CarWrapper caller, void* params, std::string even
 			botTick.Rotation = car.GetRotation();
 			botTick.Velocity = car.GetVelocity();
 
-			bot.ticks.push_back(botTick);
+
+
+			if (bot.botIndex == 0)
+			{
+				bot.ticks.push_back(botTick);
+				CurrentShot.ballTicks.push_back(ballTick);
+			}
+			else if(botSpawned && botTeleported)
+			{
+				bot.ticks.push_back(botTick);
+				LOG("bot.ticks.size {}, CurrentShot.ballTicks.size {}", bot.ticks.size(), CurrentShot.ballTicks.size());
+				if (bot.ticks.size() >= CurrentShot.ballTicks.size())
+				{
+					CurrentShot.ballTicks.push_back(ballTick);
+					playRecord = false;
+				}
+			}
 		}
 	}
 }
