@@ -85,12 +85,10 @@ void BotReplicateMoves::onLoad()
 	cvarManager->registerNotifier("replicatemoves_startrecording", [&](std::vector<std::string> args)
 		{
 			recording = true;
-
 		}, "", 0);
 	cvarManager->registerNotifier("replicatemoves_stoprecording", [&](std::vector<std::string> args)
 		{
 			recording = false;
-
 		}, "", 0);
 	cvarManager->registerNotifier("replicatemoves_playrecord", [&](std::vector<std::string> args)
 		{
@@ -98,12 +96,19 @@ void BotReplicateMoves::onLoad()
 			inputsIndex = 0;
 			botTeleported = false;
 			playRecord = true;
-
 		}, "", 0);
 	cvarManager->registerNotifier("replicatemoves_stopplaying", [&](std::vector<std::string> args)
 		{
 			playRecord = false;
-
+		}, "", 0);
+	cvarManager->registerNotifier("replicatemoves_instantreplay_saveshot", [&](std::vector<std::string> args)
+		{
+			if (InstantReplayShot.ballTicks.size() > 0)
+			{
+				Shot shot = InstantReplayShot;
+				shot.bots[0].StartEndIndexes.Y = shot.bots[0].StartEndIndexes.X + shot.bots[0].ticks.size() - 1;
+				InstantReplayShotList.push_back(shot);
+			}
 		}, "", 0);
 	cvarManager->registerNotifier("replicatemoves_initplayerlocation", [&](std::vector<std::string> args)
 		{
@@ -275,7 +280,20 @@ void BotReplicateMoves::onTick(CarWrapper caller, void* params, std::string even
 		}
 		else if (!botSpawned) //spawns bot
 		{
-			for(int n = 0; n < CurrentShot.bots.size(); n++)
+			//Get how many bots are already in the game
+			ArrayWrapper<PriWrapper> pris = sw.GetPRIs();
+			int botCount = 0;
+			for (PriWrapper pri : pris)
+			{
+				if (!pri) continue;
+				if (pri.GetbBot())  //if is bot
+					botCount++;
+			}
+
+			int BotsToSpawn = CurrentShot.bots.size() - botCount;
+
+			//Spawning missing Bots
+			for(int n = 0; n < BotsToSpawn; n++)
 			{
 				std::string botname = "ReplicatingMyMoves" + std::to_string(n + 1);
 				sw.SpawnBot(4284, botname);
@@ -342,6 +360,42 @@ void BotReplicateMoves::onTick(CarWrapper caller, void* params, std::string even
 				}
 			}
 		}
+	}
+
+	if (InstantReplayEnabled)
+	{
+		CarWrapper car = gameWrapper->GetLocalCar();
+		if (!car) { return; }
+
+		BallWrapper ball = sw.GetBall();
+		if (!ball) { return; }
+
+
+		BallTick ballTick;
+		ballTick.BallLocation = ball.GetLocation();
+		ballTick.BallRotation = ball.GetRotation();
+		ballTick.BallVelocity = ball.GetVelocity();
+
+
+		ControllerInput inputs = car.GetInput();
+		MyControllerInput myinputs;
+		SetMyInputs(myinputs, inputs);
+
+		BotTick botTick;
+		botTick.Input = myinputs;
+		botTick.Location = car.GetLocation();
+		botTick.Rotation = car.GetRotation();
+		botTick.Velocity = car.GetVelocity();
+
+
+		if (InstantReplayShot.bots[0].ticks.size() >= InstantReplayLength || InstantReplayShot.ballTicks.size() >= InstantReplayLength)
+		{
+			InstantReplayShot.bots[0].ticks.erase(InstantReplayShot.bots[0].ticks.begin()); //remove first element
+			InstantReplayShot.ballTicks.erase(InstantReplayShot.ballTicks.begin());	//remove first element
+		}
+
+		InstantReplayShot.ballTicks.push_back(ballTick);
+		InstantReplayShot.bots[0].ticks.push_back(botTick);
 	}
 }
 

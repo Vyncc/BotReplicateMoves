@@ -166,6 +166,7 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	bool botTeleported = false;
 	bool replaying = false;
 
+
 	bool IsPlayingPack = false;
 
 	int RecordingPlayerIndex = 0;
@@ -182,7 +183,11 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	int selectedShot;
 	Pack CurrentPack = { "PackMonGate", {} };
 
-
+	Shot InstantReplayShot;
+	std::vector<Shot> InstantReplayShotList;
+	bool InstantReplayEnabled = false;
+	int InstantReplayLength = 1200;
+	void renderInstantReplay();
 
 
 	//void SaveActualRecord(std::vector<Tick> recordsList);

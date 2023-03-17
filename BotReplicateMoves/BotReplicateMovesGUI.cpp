@@ -156,6 +156,7 @@ void BotReplicateMoves::Render()
 		return;
 	}
 
+	ImGui::Columns(2);
 
 	if (ImGui::Button("Load Pack"))
 	{
@@ -258,9 +259,16 @@ void BotReplicateMoves::Render()
 		CurrentPack.shots.push_back(Shot{});
 	}
 
+
+
+	ImGui::NextColumn();
+
+	renderInstantReplay();
+
+	ImGui::NextColumn();
+
 	if (showEditShotWindow)
 		RenderEditShotWindow();
-
 
 	ImGui::End();
 
@@ -268,6 +276,40 @@ void BotReplicateMoves::Render()
 	{
 		cvarManager->executeCommand("togglemenu " + GetMenuName());
 	}
+}
+
+void BotReplicateMoves::renderInstantReplay()
+{
+	ImGui::Checkbox("Enable Instant Replay", &InstantReplayEnabled);
+	ImGui::SliderInt("Instant replay Length", &InstantReplayLength, 100, 30000);
+
+	ImGui::BeginChild("##InstantReplayShotList", ImVec2(ImGui::GetContentRegionAvailWidth(), 200.f), true);
+
+	for (int n = 0; n < InstantReplayShotList.size(); n++)
+	{
+		ImGui::PushID(n);
+		Shot shot = InstantReplayShotList[n];
+		ImGui::Text("Shot %d", n);
+		ImGui::SameLine();
+		if (ImGui::Button("Add Shot To Current Pack"))
+		{
+			CurrentPack.shots.push_back(shot);
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Delete"))
+		{
+			InstantReplayShotList.erase(InstantReplayShotList.begin() + n);
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Edit"))
+		{
+			CurrentShot = shot;
+			showEditShotWindow = true; //show the edit window
+		}
+		ImGui::PopID();
+	}
+
+	ImGui::EndChild();
 }
 
 void BotReplicateMoves::RenderEditShotWindow()
@@ -297,6 +339,7 @@ void BotReplicateMoves::RenderEditShotWindow()
 			{
 				tickCount = 0;
 				inputsIndex = 0;
+				botSpawned = false;
 				botTeleported = false;
 				playRecord = true;
 				replaying = false;
@@ -389,6 +432,7 @@ void BotReplicateMoves::RenderEditShotWindow()
 		{
 			tickCount = 0;
 			inputsIndex = 0;
+			botSpawned = false;
 			botTeleported = false;
 			playRecord = true;
 
@@ -430,7 +474,7 @@ void BotReplicateMoves::RenderEditShotWindow()
 	if (ImGui::Button("Save", ImVec2(100.f, 30.f)))
 	{
 		CurrentPack.shots[selectedShot] = CurrentShot;
-		ImGui::OpenPopup("Save");;
+		ImGui::OpenPopup("Save");
 
 		ImGui::CloseCurrentPopup();
 	}
