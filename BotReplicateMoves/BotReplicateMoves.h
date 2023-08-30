@@ -76,10 +76,10 @@ struct Shot
 {
 	int ticksCount = 0;
 
-	Vector InitLocation = { 0, 0, 0 };
+	/*Vector InitLocation = { 0, 0, 0 };
 	Rotator InitRotation = { 0, 0, 0 };
 	Vector InitVelocity = { 0, 0, 0 };
-	Vector InitAngularVelocity = { 0, 0, 0 };
+	Vector InitAngularVelocity = { 0, 0, 0 };*/
 
 	std::vector<Bot> bots = { Bot(0) };
 	std::vector<BallTick> ballTicks;
@@ -104,7 +104,8 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Rotator, Pitch, Yaw, Roll)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BotTick, Input, Location, Rotation, Velocity)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Bot, recording, replaying, botIndex, StartEndIndexes, ticks)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BallTick, BallLocation, BallRotation, BallVelocity)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Shot, ticksCount, InitLocation, InitRotation, InitVelocity, InitAngularVelocity, bots, ballTicks)
+//NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Shot, ticksCount, InitLocation, InitRotation, InitVelocity, InitAngularVelocity, bots, ballTicks)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Shot, ticksCount, bots, ballTicks)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Pack, name, shots)
 
 /*
@@ -141,6 +142,13 @@ enum RecordingNewAttackerState
 	RECORDING = 1
 };
 
+enum class PlayingState
+{
+	STOPPED = 1,
+	PLAYING = 2,
+	SPAWNINGBOT = 3,
+	TELEPORTINGBOT = 4
+};
 
 
 class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public BakkesMod::Plugin::PluginSettingsWindow, public BakkesMod::Plugin::PluginWindow
@@ -155,26 +163,21 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	void SetMyInputs(MyControllerInput& myinputs, ControllerInput inputs);
 	void SetInputs(ControllerInput& inputs, MyControllerInput myinputs);
 
+	PlayingState playingState = PlayingState::STOPPED;
+
 	bool activatePlugin = true;
 	bool UsePlayerCar = false;
 	bool UseTimeLine = false;
-	bool recording = false;
-	bool SetupingShot = false;;
-	bool RecordingPlayerInitLoc = false;
-	bool playRecord = false;
-	bool botSpawned = false;
-	bool botTeleported = false;
-	bool replaying = false;
 
-
+	bool SetupingShot = false;
 	bool IsPlayingPack = false;
 
-	int RecordingPlayerIndex = 0;
+	bool recording = false;
+	bool playRecord = false;
+	void PlayShot(ServerWrapper server);
+	void TeleportBots(ServerWrapper server);
+	void SpawnBots(ServerWrapper server);
 
-	Vector recordInitLocation;
-	Rotator recordInitRotation;
-	Vector recordInitVelocity;
-	float recordInitBoostAmount = 1.f;
 
 	int tickCount = 0;
 	int inputsIndex = 0;
@@ -228,10 +231,14 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	bool showTrimShot = false;
 	void renderTimeLine();
 	void renderTimeLineBackground();
-	void renderLine(ImVec2 origin, ImVec2 end);
+	void renderLine(ImVec2 origin, ImVec2 end, float posPercentage, ImColor color);
 	void renderBotTimeLine(std::string botName, ImVec2 size);
 	void renderBallTimeLine();
 	void renderRectangle(ImVec2 size);
+
+	int Trim_StartIndex = 0;
+	int Trim_EndIndex = 0;
+	
 	
 
 	// Inherited via PluginWindow

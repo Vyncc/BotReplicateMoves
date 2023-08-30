@@ -93,7 +93,6 @@ void BotReplicateMoves::RenderSettings()
 	{
 		tickCount = 0;
 		inputsIndex = 0;
-		botTeleported = false;
 		playRecord = true;
 	}
 
@@ -332,47 +331,46 @@ void BotReplicateMoves::RenderEditShotWindow()
 
 		ImGui::Text("Bot %d", n);
 
-		if (ImGui::Button("Start recording", ImVec2(100.f, 30.f)))
+		if (n == CurrentShot.bots.size() - 1)
 		{
-			bot.recording = true;
-			if (bot.botIndex != 0)
+			if (ImGui::Button("Start recording", ImVec2(100.f, 30.f)))
 			{
-				tickCount = 0;
-				inputsIndex = 0;
-				botSpawned = false;
-				botTeleported = false;
-				playRecord = true;
-				replaying = false;
+				bot.recording = true;
+				if (bot.botIndex != 0)
+				{
+					playRecord = true;
+					playingState = PlayingState::SPAWNINGBOT;
 
-				bot.StartEndIndexes.X = 0;
+					bot.StartEndIndexes.X = 0;
+
+					for (Bot& b : CurrentShot.bots)
+					{
+						if (b.botIndex != bot.botIndex)
+							b.replaying = true;
+					}
+				}
+
+
+			}
+
+			ImGui::SameLine();
+
+			if (ImGui::Button("Stop recording", ImVec2(100.f, 30.f)))
+			{
+				bot.recording = false;
+				bot.StartEndIndexes.Y = bot.StartEndIndexes.X + bot.ticks.size() - 1;
+				LOG("StartEndIndexes.Y : {}", bot.StartEndIndexes.Y);
 
 				for (Bot& b : CurrentShot.bots)
 				{
-					if(b.botIndex != bot.botIndex)
-						b.replaying = true;
+					b.replaying = false;
 				}
 			}
 
-
-		}
-
-		ImGui::SameLine();
-
-		if (ImGui::Button("Stop recording", ImVec2(100.f, 30.f)))
-		{
-			bot.recording = false;
-			bot.StartEndIndexes.Y = bot.StartEndIndexes.X + bot.ticks.size() - 1;
-			LOG("StartEndIndexes.Y : {}", bot.StartEndIndexes.Y);
-
-			for (Bot& b : CurrentShot.bots)
+			if (ImGui::Button("Delete"))
 			{
-				b.replaying = false;
+				CurrentShot.bots.erase(CurrentShot.bots.begin() + n);
 			}
-		}
-
-		if (ImGui::Button("Delete"))
-		{
-			CurrentShot.bots.erase(CurrentShot.bots.begin() + n);
 		}
 
 		ImGui::Text("Bot Ticks Count : %d", bot.ticks.size());
@@ -391,50 +389,22 @@ void BotReplicateMoves::RenderEditShotWindow()
 	ImGui::Separator();
 
 
-	std::string RecordingPlayerInitText = "Start recording player init";
-	if (RecordingPlayerInitLoc)
-		RecordingPlayerInitText = "Waiting for player init location";
 
-	if (ImGui::Button(RecordingPlayerInitText.c_str(), ImVec2(200.f, 30.f)))
-	{
-		if (RecordingPlayerInitLoc)
-			RecordingPlayerInitLoc = false;
-		else
-			RecordingPlayerInitLoc = true;
-	}
+	ImGui::NewLine();
 
-	if (RecordingPlayerInitLoc)
-	{
-		if (ImGui::Button("Take this init player loc", ImVec2(200.f, 30.f)))
-		{
-			gameWrapper->Execute([&](GameWrapper* gw)
-				{
-					cvarManager->executeCommand("replicatemoves_initplayerlocation");
-				});
-		}
-	}
+	ImGui::Text("Ball Ticks Count : %d", CurrentShot.GetTicksCount());
 
+	ImGui::NewLine();
+	ImGui::Separator();
+	ImGui::NewLine();
 
-	ImGui::Checkbox("UseTimeLine", &UseTimeLine);
-	ImGui::SliderInt("Timeline", &inputsIndex, 0, CurrentShot.GetTicksCount() - 1);
-
-
-	std::string loc = std::to_string(CurrentShot.InitLocation.X) + ", " + std::to_string(CurrentShot.InitLocation.Y) + ", " + std::to_string(CurrentShot.InitLocation.Z);
-	ImGui::Text(loc.c_str());
-	std::string rot = std::to_string(CurrentShot.InitRotation.Pitch) + ", " + std::to_string(CurrentShot.InitRotation.Yaw) + ", " + std::to_string(CurrentShot.InitRotation.Roll);
-	ImGui::Text(rot.c_str());
-	std::string vel = std::to_string(CurrentShot.InitVelocity.X) + ", " + std::to_string(CurrentShot.InitVelocity.Y) + ", " + std::to_string(CurrentShot.InitVelocity.Z);
-	ImGui::Text(vel.c_str());
 
 	if (CurrentShot.GetTicksCount() != 0)
 	{
 		if (ImGui::Button("Play", ImVec2(100.f, 30.f)))
 		{
-			tickCount = 0;
-			inputsIndex = 0;
-			botSpawned = false;
-			botTeleported = false;
 			playRecord = true;
+			playingState = PlayingState::SPAWNINGBOT;
 
 			for (Bot& b : CurrentShot.bots)
 			{
@@ -447,7 +417,6 @@ void BotReplicateMoves::RenderEditShotWindow()
 		if (ImGui::Button("Stop Playing", ImVec2(100.f, 30.f)))
 		{
 			playRecord = false;
-			replaying = false;
 			for (Bot& b : CurrentShot.bots)
 			{
 				b.replaying = false;
@@ -457,17 +426,9 @@ void BotReplicateMoves::RenderEditShotWindow()
 
 	ImGui::NewLine();
 
-	ImGui::Text("Ball Ticks Count : %d", CurrentShot.GetTicksCount());
+	renderTrimShot();
 
-	ImGui::NewLine();
-
-	if (ImGui::Button("Trim Shot", ImVec2(100.f, 30.f)))
-	{
-		showTrimShot = true;
-	}
-
-	if (showTrimShot)
-		renderTrimShot();
+	ImGui::Separator();
 
 	ImGui::NewLine();
 
@@ -492,16 +453,11 @@ void BotReplicateMoves::RenderEditShotWindow()
 
 void BotReplicateMoves::renderTrimShot()
 {
-	if (!ImGui::Begin("Trim Shot", &showTrimShot, ImGuiWindowFlags_None)) {
-		ImGui::End();
-		return;
-	}
-
-	static float widthTest = 100.f;
+	/*static float widthTest = 100.f;
 	static float heightTest = 50.f;
 	ImGui::SliderFloat("widthTest", &widthTest, 0.f, 800.f);
 	ImGui::SliderFloat("heightTest", &heightTest, 0.f, 800.f);
-	ImVec2 size(widthTest, heightTest);
+	ImVec2 size(widthTest, heightTest);*/
 
 	
 	ImGui::Text("inputsIndex : %d", inputsIndex);
@@ -509,21 +465,51 @@ void BotReplicateMoves::renderTrimShot()
 	renderTimeLine();
 
 
-	if (ImGui::Button("Cancel", ImVec2(100.f, 30.f)))
+	ImGui::NewLine();
+
+	ImGui::Checkbox("Pause", &UseTimeLine);
+	ImGui::SliderInt("Timeline", &inputsIndex, 0, CurrentShot.GetTicksCount() - 1);
+
+	if (ImGui::Button("Set Begin"))
 	{
-		showTrimShot = false;
-		ImGui::CloseCurrentPopup();
+		Trim_StartIndex = inputsIndex;
 	}
 	ImGui::SameLine();
-
-	if (ImGui::Button("Cancel", ImVec2(100.f, 30.f)))
+	if (ImGui::Button("Set End"))
 	{
-		showTrimShot = false;
-		ImGui::CloseCurrentPopup();
+		Trim_EndIndex = inputsIndex;
 	}
 
+	if (ImGui::Button("Trim"))
+	{
+		//Start
+		if (Trim_StartIndex != 0)
+		{
+			CurrentShot.ballTicks.erase(CurrentShot.ballTicks.begin(), CurrentShot.ballTicks.begin() + Trim_StartIndex);
+			for (Bot& bot : CurrentShot.bots)
+				bot.ticks.erase(bot.ticks.begin(), bot.ticks.begin() + Trim_StartIndex);
 
-	ImGui::End();
+			LOG("Shot trimmed, it now starts at the index {}", Trim_StartIndex);
+
+			Trim_EndIndex -= Trim_StartIndex;
+			Trim_StartIndex = 0;
+		}
+
+		//End
+		if (Trim_EndIndex != 0)
+		{
+			CurrentShot.ballTicks.erase(CurrentShot.ballTicks.begin() + Trim_EndIndex, CurrentShot.ballTicks.end());
+			for (Bot& bot : CurrentShot.bots)
+			{
+				if(Trim_EndIndex < bot.ticks.size())
+					bot.ticks.erase(bot.ticks.begin() + Trim_EndIndex, bot.ticks.end());
+			}
+
+			LOG("Shot trimmed, it now ends at the index {}", Trim_EndIndex);
+			Trim_EndIndex = 0;
+		}
+	}
+
 }
 
 void BotReplicateMoves::renderTimeLine()
@@ -545,8 +531,40 @@ void BotReplicateMoves::renderTimeLine()
 		renderBotTimeLine(std::string("Bot " + std::to_string(i)), ImVec2(botTimeLineWidth, 38.f));
 		ImGui::PopID();
 	}
+
 	ImVec2 LineEnd = ImGui::GetCursorScreenPos();
-	renderLine(LineOrigin, LineEnd);
+
+	//inputsIndex line
+	float LinePosPercentage = 0.f;
+	if (CurrentShot.ballTicks.size() > 0)
+		LinePosPercentage = float(inputsIndex) / CurrentShot.ballTicks.size();
+	LOG("inputsIndex LinePosPercentage : {}", LinePosPercentage);
+	renderLine(LineOrigin, LineEnd, LinePosPercentage, ImColor(255, 255, 255, 255));
+
+	static int startIndex = 0;
+	static int endIndex = 0;
+
+	//Trim_StartIndex line
+	LinePosPercentage = 0.f;
+	if(Trim_StartIndex > 0)
+		LinePosPercentage = float(Trim_StartIndex) / CurrentShot.ballTicks.size();
+	else
+		LinePosPercentage = float(startIndex) / CurrentShot.ballTicks.size();
+	LOG("Trim_StartIndex LinePosPercentage : {}", LinePosPercentage);
+	renderLine(LineOrigin, LineEnd, LinePosPercentage, ImColor(0, 255, 0, 255));
+
+	//Trim_EndIndex line
+	LinePosPercentage = 0.f;
+	if (CurrentShot.ballTicks.size() > 0)
+		endIndex = CurrentShot.ballTicks.size() - 1;
+
+	if (Trim_EndIndex > 0)
+		LinePosPercentage = float(Trim_EndIndex) / CurrentShot.ballTicks.size();
+	else
+		LinePosPercentage = float(endIndex) / CurrentShot.ballTicks.size();
+	LOG("Trim_EndIndex LinePosPercentage : {}", LinePosPercentage);
+	renderLine(LineOrigin, LineEnd, LinePosPercentage, ImColor(255, 0, 0, 255));
+
 }
 
 void BotReplicateMoves::renderTimeLineBackground()
@@ -560,21 +578,17 @@ void BotReplicateMoves::renderTimeLineBackground()
 
 }
 
-void BotReplicateMoves::renderLine(ImVec2 origin, ImVec2 end)
+void BotReplicateMoves::renderLine(ImVec2 origin, ImVec2 end, float posPercentage, ImColor color)
 {
 	ImDrawList* draw_list = ImGui::GetWindowDrawList();
 	ImVec2 bottom = ImGui::GetCursorScreenPos();
-	float LinePosPercentage = 0.f;
-	if (CurrentShot.ballTicks.size() > 0)
-		LinePosPercentage = float(inputsIndex) / CurrentShot.ballTicks.size();
-	LOG("LinePosPercentage : {}", LinePosPercentage);
-	float LinePos = 300.f * LinePosPercentage; //300 = la largeur de la timeLine
+	float LinePos = 300.f * posPercentage; //300 = la largeur de la timeLine
 	LOG("LinePos : {}", LinePos);
 	ImGui::SetCursorScreenPos(ImVec2(origin.x + 100.f + LinePos, origin.y));
 	ImVec2 TopCornerLeft = ImGui::GetCursorScreenPos();
 	ImVec2 RectFilled_p_max = ImVec2(TopCornerLeft.x, end.y);
 
-	draw_list->AddLine(TopCornerLeft, RectFilled_p_max, ImColor(255, 255, 255, 255), 1.f);
+	draw_list->AddLine(TopCornerLeft, RectFilled_p_max, color, 1.f);
 	ImGui::SetCursorScreenPos(ImVec2(TopCornerLeft.x - 100.f - LinePos, bottom.y));
 }
 
