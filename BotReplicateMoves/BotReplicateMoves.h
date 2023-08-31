@@ -7,7 +7,14 @@
 #include "version.h"
 constexpr auto plugin_version = stringify(VERSION_MAJOR) "." stringify(VERSION_MINOR) "." stringify(VERSION_PATCH) "." stringify(VERSION_BUILD);
 
+//for ImClamp()
+#include "IMGUI/imgui_internal.h"
 
+
+
+bool operator==(const Vector& lhs, const Vector& rhs);
+bool operator==(const Rotator& lhs, const Rotator& rhs);
+bool operator==(const Vector2& lhs, const Vector2& rhs);
 
 struct MyControllerInput
 {
@@ -23,6 +30,21 @@ struct MyControllerInput
 	unsigned long ActivateBoost;
 	unsigned long HoldingBoost;
 	unsigned long Jumped;
+
+	bool operator==(const MyControllerInput& other) const {
+		return Throttle == other.Throttle &&
+			Steer == other.Steer &&
+			Pitch == other.Pitch &&
+			Yaw == other.Yaw &&
+			Roll == other.Roll &&
+			DodgeForward == other.DodgeForward &&
+			DodgeStrafe == other.DodgeStrafe &&
+			Handbrake == other.Handbrake &&
+			Jump == other.Jump &&
+			ActivateBoost == other.ActivateBoost &&
+			HoldingBoost == other.HoldingBoost &&
+			Jumped == other.Jumped;
+	}
 };
 
 struct BotTick
@@ -31,6 +53,13 @@ struct BotTick
 	Vector Location;
 	Rotator Rotation;
 	Vector Velocity;
+
+	bool operator==(const BotTick& other) const {
+		return Input == other.Input &&
+			Location == other.Location &&
+			Rotation == other.Rotation &&
+			Velocity == other.Velocity;
+	}
 };
 
 struct Bot
@@ -63,6 +92,12 @@ struct Bot
 			StartEndIndexes.Y != other.StartEndIndexes.Y ||
 			ticks != other.ticks);
 	}*/
+
+	bool operator==(const Bot& other) const {
+		return botIndex == other.botIndex &&
+			StartEndIndexes == other.StartEndIndexes &&
+			ticks == other.ticks;
+	}
 };
 
 struct BallTick
@@ -70,6 +105,12 @@ struct BallTick
 	Vector BallLocation;
 	Rotator BallRotation;
 	Vector BallVelocity;
+
+	bool operator==(const BallTick& other) const {
+		return BallLocation == other.BallLocation &&
+			BallRotation == other.BallRotation &&
+			BallVelocity == other.BallVelocity;
+	}
 };
 
 struct Shot
@@ -86,6 +127,12 @@ struct Shot
 
 	int GetTicksCount() {
 		return ballTicks.size();
+	}
+
+	bool operator==(const Shot& other) const {
+		return ticksCount == other.ticksCount &&
+			bots == other.bots &&
+			ballTicks == other.ballTicks;
 	}
 };
 
@@ -151,6 +198,73 @@ enum class PlayingState
 };
 
 
+//really bad ngl but it works
+struct Slider
+{
+	Slider(float* _value, float _minValue, float _maxValue, ImVec2 _sliderSize = ImVec2(200, 20), ImVec2 _cursorSize = ImVec2(10, 20)) {
+		value = _value;
+		minValue = _minValue;
+		maxValue = _maxValue;
+		sliderSize = _sliderSize;
+		cursorSize = _cursorSize;
+		cursorPosX = 0.f;
+		isDragging = false;
+		spaceBetweenMouseCursorAndSliderCursor = 0.f;
+	}
+
+	void Draw() {
+		ImGuiIO& io = ImGui::GetIO();
+		ImVec2 cursorPos = ImGui::GetCursorScreenPos();
+		ImVec2 rectMax = ImVec2(cursorPos.x + sliderSize.x, cursorPos.y + sliderSize.y);
+
+		float val = *value;
+		cursorPosX = (val - minValue) * (sliderSize.x - cursorSize.x) / (maxValue - minValue);
+
+		ImGui::SetCursorScreenPos(cursorPos + ImVec2(cursorPosX, 0.f));
+		ImGui::InvisibleButton("slider", cursorSize);
+		if (ImGui::IsItemHovered()) {
+			if (io.MouseClicked[0])
+			{
+				spaceBetweenMouseCursorAndSliderCursor = io.MousePos.x - (cursorPos.x + cursorPosX);
+				isDragging = true;
+			}
+		}
+
+		if (isDragging) {
+			if (io.MouseDown[0]) {
+				cursorPosX = io.MousePos.x - cursorPos.x - spaceBetweenMouseCursorAndSliderCursor;
+				cursorPosX = ImClamp(cursorPosX, 0.0f, sliderSize.x - cursorSize.x);
+				*value = float(minValue + (maxValue - minValue) * (cursorPosX / (sliderSize.x - cursorSize.x)));
+				LOG("dragging...");
+			}
+			else {
+				isDragging = false;
+				LOG("not dragging anymore");
+			}
+		}
+
+		SliderCursorScreenPos = cursorPos + ImVec2(cursorPosX, 0);
+
+		ImGui::GetWindowDrawList()->AddRectFilled(cursorPos, rectMax, IM_COL32(255, 100, 100, 255));
+		ImGui::GetWindowDrawList()->AddRectFilled(cursorPos + ImVec2(cursorPosX, 0), cursorPos + ImVec2(cursorPosX + cursorSize.x, cursorSize.y), IM_COL32(200, 200, 200, 255));
+
+		/*ImGui::SetCursorScreenPos(ImVec2(rectMax.x, cursorPos.y));
+		ImGui::Text("%f", *value);*/
+	}
+
+
+	float* value;
+	ImVec2 sliderSize;
+	ImVec2 cursorSize;
+	float minValue;
+	float maxValue;
+	ImVec2 SliderCursorScreenPos;
+	float cursorPosX;
+	bool isDragging;
+	float spaceBetweenMouseCursorAndSliderCursor;
+};
+
+
 class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public BakkesMod::Plugin::PluginSettingsWindow, public BakkesMod::Plugin::PluginWindow
 {
 
@@ -159,6 +273,22 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	//Boilerplate
 	virtual void onLoad();
 	virtual void onUnload();
+
+	std::shared_ptr<ImageWrapper> image_play;
+	std::shared_ptr<ImageWrapper> image_pause;
+	std::shared_ptr<ImageWrapper> image_stop;
+	std::shared_ptr<ImageWrapper> image_fastForward;
+	std::shared_ptr<ImageWrapper> image_fastBackward;
+
+
+	std::shared_ptr<ImageWrapper> image_confirm;
+	std::shared_ptr<ImageWrapper> image_cancel;
+	std::shared_ptr<ImageWrapper> image_startRecording;
+	std::shared_ptr<ImageWrapper> image_stopRecording;
+	std::shared_ptr<ImageWrapper> image_trim;
+	std::shared_ptr<ImageWrapper> image_setTrimStart;
+	std::shared_ptr<ImageWrapper> image_setTrimEnd;
+
 
 	void SetMyInputs(MyControllerInput& myinputs, ControllerInput inputs);
 	void SetInputs(ControllerInput& inputs, MyControllerInput myinputs);
@@ -182,9 +312,10 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	int tickCount = 0;
 	int inputsIndex = 0;
 
+	std::vector<Shot> CurrentShotBackupList;
 	Shot CurrentShot;
 	int selectedShot;
-	Pack CurrentPack = { "PackMonGate", {} };
+	Pack CurrentPack = { "OhMonGate", {} };
 
 	Shot InstantReplayShot;
 	std::vector<Shot> InstantReplayShotList;

@@ -112,6 +112,7 @@
     <ClCompile Include="BotReplicateMovesGUI.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CustomWidgets.hpp" />
     <ClInclude Include="imgui\imconfig.h" />
     <ClInclude Include="imgui\imgui.h" />
     <ClInclude Include="imgui\imguivariouscontrols.h" />

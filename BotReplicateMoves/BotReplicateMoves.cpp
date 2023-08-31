@@ -2,13 +2,41 @@
 #include "BotReplicateMoves.h"
 
 
-BAKKESMOD_PLUGIN(BotReplicateMoves, "write a plugin description here", plugin_version, PLUGINTYPE_FREEPLAY)
+
+bool operator==(const Vector& lhs, const Vector& rhs) {
+	return lhs.X == rhs.X && lhs.Y == rhs.Y && lhs.Z == rhs.Z;
+}
+
+bool operator==(const Rotator& lhs, const Rotator& rhs) {
+	return lhs.Pitch == rhs.Pitch && lhs.Yaw == rhs.Yaw && lhs.Roll == rhs.Roll;
+}
+
+
+bool operator==(const Vector2& lhs, const Vector2& rhs) {
+	return lhs.X == rhs.X && lhs.Y == rhs.Y;
+}
+
+BAKKESMOD_PLUGIN(BotReplicateMoves, "BotReplicateMoves", plugin_version, PLUGINTYPE_FREEPLAY)
 
 std::shared_ptr<CVarManagerWrapper> _globalCvarManager;
 
 void BotReplicateMoves::onLoad()
 {
 	_globalCvarManager = cvarManager;
+
+	image_play = std::make_shared<ImageWrapper>(dataPath + "\\images\\play.png", false, true);
+	image_pause = std::make_shared<ImageWrapper>(dataPath + "\\images\\pause.png", false, true);
+	image_stop = std::make_shared<ImageWrapper>(dataPath + "\\images\\stop.png", false, true);
+	image_fastForward = std::make_shared<ImageWrapper>(dataPath + "\\images\\fastforward.png", false, true);
+	image_fastBackward = std::make_shared<ImageWrapper>(dataPath + "\\images\\fastbackward.png", false, true);
+
+	image_confirm = std::make_shared<ImageWrapper>(dataPath + "\\images\\confirm.png", false, true);
+	image_cancel = std::make_shared<ImageWrapper>(dataPath + "\\images\\cancel.png", false, true);
+	image_startRecording = std::make_shared<ImageWrapper>(dataPath + "\\images\\startrecording.png", false, true);
+	image_stopRecording = std::make_shared<ImageWrapper>(dataPath + "\\images\\stoprecording.png", false, true);
+	image_trim = std::make_shared<ImageWrapper>(dataPath + "\\images\\trim.png", false, true);
+	image_setTrimStart = std::make_shared<ImageWrapper>(dataPath + "\\images\\settrimstart.png", false, true);
+	image_setTrimEnd = std::make_shared<ImageWrapper>(dataPath + "\\images\\settrimend.png", false, true);
 
 	gameWrapper->RegisterDrawable(std::bind(&BotReplicateMoves::RenderCanvas, this, std::placeholders::_1));
 
