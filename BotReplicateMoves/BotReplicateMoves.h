@@ -194,19 +194,22 @@ enum class PlayingState
 	STOPPED = 1,
 	PLAYING = 2,
 	SPAWNINGBOT = 3,
-	TELEPORTINGBOT = 4
+	TELEPORTINGBOT = 4,
+	PAUSED = 5
 };
 
 
 //really bad ngl but it works
 struct Slider
 {
-	Slider(float* _value, float _minValue, float _maxValue, ImVec2 _sliderSize = ImVec2(200, 20), ImVec2 _cursorSize = ImVec2(10, 20)) {
+	Slider(int* _value, float _minValue, float _maxValue, ImVec2 _sliderSize = ImVec2(200, 20), ImVec2 _cursorSize = ImVec2(10, 20), ImColor _cursorColor = ImColor(200, 200, 200, 255), ImVec2 _CursorOrigin = ImVec2(-1, -1)) {
 		value = _value;
 		minValue = _minValue;
 		maxValue = _maxValue;
 		sliderSize = _sliderSize;
 		cursorSize = _cursorSize;
+		cursorColor = _cursorColor;
+		CursorOrigin = _CursorOrigin;
 		cursorPosX = 0.f;
 		isDragging = false;
 		spaceBetweenMouseCursorAndSliderCursor = 0.f;
@@ -215,13 +218,17 @@ struct Slider
 	void Draw() {
 		ImGuiIO& io = ImGui::GetIO();
 		ImVec2 cursorPos = ImGui::GetCursorScreenPos();
+		if (CursorOrigin.x != -1 && CursorOrigin.y != -1)
+			cursorPos = CursorOrigin;
 		ImVec2 rectMax = ImVec2(cursorPos.x + sliderSize.x, cursorPos.y + sliderSize.y);
 
-		float val = *value;
-		cursorPosX = (val - minValue) * (sliderSize.x - cursorSize.x) / (maxValue - minValue);
+		int val = *value;
+		cursorPosX = (val - minValue) * (sliderSize.x) / (maxValue - minValue);
 
-		ImGui::SetCursorScreenPos(cursorPos + ImVec2(cursorPosX, 0.f));
-		ImGui::InvisibleButton("slider", cursorSize);
+		ImVec2 CursorRectangleMinPos = cursorPos + ImVec2(cursorPosX - (cursorSize.x / 2.f), 0.f);
+
+		ImGui::SetCursorScreenPos(CursorRectangleMinPos);
+		ImGui::InvisibleButton("slider", cursorSize + ImVec2(0.f, cursorSize.y));
 		if (ImGui::IsItemHovered()) {
 			if (io.MouseClicked[0])
 			{
@@ -233,8 +240,8 @@ struct Slider
 		if (isDragging) {
 			if (io.MouseDown[0]) {
 				cursorPosX = io.MousePos.x - cursorPos.x - spaceBetweenMouseCursorAndSliderCursor;
-				cursorPosX = ImClamp(cursorPosX, 0.0f, sliderSize.x - cursorSize.x);
-				*value = float(minValue + (maxValue - minValue) * (cursorPosX / (sliderSize.x - cursorSize.x)));
+				cursorPosX = ImClamp(cursorPosX, 0.f, sliderSize.x);
+				*value = float(minValue + (maxValue - minValue) * (cursorPosX / sliderSize.x));
 				LOG("dragging...");
 			}
 			else {
@@ -243,19 +250,30 @@ struct Slider
 			}
 		}
 
-		SliderCursorScreenPos = cursorPos + ImVec2(cursorPosX, 0);
 
-		ImGui::GetWindowDrawList()->AddRectFilled(cursorPos, rectMax, IM_COL32(255, 100, 100, 255));
-		ImGui::GetWindowDrawList()->AddRectFilled(cursorPos + ImVec2(cursorPosX, 0), cursorPos + ImVec2(cursorPosX + cursorSize.x, cursorSize.y), IM_COL32(200, 200, 200, 255));
+		//ImGui::GetWindowDrawList()->AddRectFilled(cursorPos, rectMax, IM_COL32(255, 100, 100, 255));
+
+		CursorRectangleMinPos = cursorPos + ImVec2(cursorPosX - (cursorSize.x / 2.f), 0.f);
+		ImVec2 CursorRectangleMaxPos = cursorPos + ImVec2(cursorPosX + (cursorSize.x / 2.f), cursorSize.y);
+		ImGui::GetWindowDrawList()->AddRectFilled(CursorRectangleMinPos, CursorRectangleMaxPos, cursorColor);
+
+		ImVec2 p1 = ImVec2(CursorRectangleMinPos.x, CursorRectangleMinPos.y + cursorSize.y);
+		ImVec2 p2 = ImVec2(p1.x + cursorSize.x, p1.y);
+		ImVec2 p3 = ImVec2((p1.x + p2.x) / 2.f, p1.y + 15.f);
+		ImGui::GetWindowDrawList()->AddTriangleFilled(p1, p2, p3, cursorColor);
+
+		SliderCursorScreenPos = p3;
 
 		/*ImGui::SetCursorScreenPos(ImVec2(rectMax.x, cursorPos.y));
-		ImGui::Text("%f", *value);*/
+		ImGui::Text("%d", *value);*/
 	}
 
 
-	float* value;
+	int* value;
 	ImVec2 sliderSize;
 	ImVec2 cursorSize;
+	ImColor cursorColor;
+	ImVec2 CursorOrigin;
 	float minValue;
 	float maxValue;
 	ImVec2 SliderCursorScreenPos;
@@ -285,9 +303,13 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	std::shared_ptr<ImageWrapper> image_cancel;
 	std::shared_ptr<ImageWrapper> image_startRecording;
 	std::shared_ptr<ImageWrapper> image_stopRecording;
+
 	std::shared_ptr<ImageWrapper> image_trim;
+	std::shared_ptr<ImageWrapper> image_trim_Greyed;
 	std::shared_ptr<ImageWrapper> image_setTrimStart;
+	std::shared_ptr<ImageWrapper> image_setTrimStart_Greyed;
 	std::shared_ptr<ImageWrapper> image_setTrimEnd;
+	std::shared_ptr<ImageWrapper> image_setTrimEnd_Greyed;
 
 
 	void SetMyInputs(MyControllerInput& myinputs, ControllerInput inputs);
@@ -298,6 +320,8 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	bool activatePlugin = true;
 	bool UsePlayerCar = false;
 	bool UseTimeLine = false;
+
+	bool IsTrimming = false;
 
 	bool SetupingShot = false;
 	bool IsPlayingPack = false;

@@ -322,10 +322,11 @@ void BotReplicateMoves::RenderEditShotWindow()
 		return;
 	}
 
+	ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
 	ImGui::Text("Shot Selected : %d", selectedShot);
 
 	ImGui::NewLine();
-
 	ImGui::Separator();
 
 	ImGui::NewLine();
@@ -353,20 +354,34 @@ void BotReplicateMoves::RenderEditShotWindow()
 	static bool playButtonHovered = false;
 	if (ImageButton("PlayButton", image_play->GetImGuiTex(), ImVec2(40.f, 40.f), 5.f, ImColor(255, 255, 255, 200), ImColor(0, 0, 0, 0), ImColor(0, 0, 0, 0), playButtonHovered))
 	{
-		if (CurrentShot.GetTicksCount() != 0)
+		if (playRecord && playingState == PlayingState::PAUSED) //it was paused, playing the record again from where it was paused
 		{
-			playRecord = true;
-			playingState = PlayingState::SPAWNINGBOT;
-
-			for (Bot& b : CurrentShot.bots)
+			LOG("Unpausing");
+			playingState = PlayingState::PLAYING;
+		}
+		else if (!playRecord && playingState == PlayingState::STOPPED) //it was not playing, starting from the beginning
+		{
+			if (CurrentShot.GetTicksCount() != 0)
 			{
-				b.replaying = true;
+				LOG("Starting to play the shot");
+
+				playRecord = true;
+				playingState = PlayingState::SPAWNINGBOT;
+
+				for (Bot& b : CurrentShot.bots)
+				{
+					b.replaying = true;
+				}
 			}
 		}
 	}
 	ImGui::SameLine();
 	static bool pauseButtonHovered = false;
-	ImageButton("PauseButton", image_pause->GetImGuiTex(), ImVec2(40.f, 40.f), 5.f, ImColor(255, 255, 255, 200), ImColor(0, 0, 0, 0), ImColor(0, 0, 0, 0), pauseButtonHovered);
+	if (ImageButton("PauseButton", image_pause->GetImGuiTex(), ImVec2(40.f, 40.f), 5.f, ImColor(255, 255, 255, 200), ImColor(0, 0, 0, 0), ImColor(0, 0, 0, 0), pauseButtonHovered))
+	{
+		LOG("Pausing");
+		playingState = PlayingState::PAUSED;
+	}
 	ImGui::SameLine();
 	static bool stopButtonHovered = false;
 	if (ImageButton("StopButton", image_stop->GetImGuiTex(), ImVec2(40.f, 40.f), 5.f, ImColor(255, 255, 255, 200), ImColor(0, 0, 0, 0), ImColor(0, 0, 0, 0), stopButtonHovered))
@@ -374,6 +389,8 @@ void BotReplicateMoves::RenderEditShotWindow()
 		if (CurrentShot.GetTicksCount() != 0)
 		{
 			playRecord = false;
+			playingState = PlayingState::STOPPED;
+
 			for (Bot& b : CurrentShot.bots)
 			{
 				b.replaying = false;
@@ -386,11 +403,12 @@ void BotReplicateMoves::RenderEditShotWindow()
 
 
 
-	ImGui::SameLine();
-	static bool trimButtonHovered = false;
-	if (ImageButton("TrimButton", image_trim->GetImGuiTex(), ImVec2(40.f, 40.f), 5.f, ImColor(255, 255, 255, 200), ImColor(0, 0, 0, 0), ImColor(0, 0, 0, 0), trimButtonHovered))
-	{
 
+	if (CheckboxImage("##TrimCheckboxImage", IsTrimming, image_trim->GetImGuiTex(), image_trim_Greyed->GetImGuiTex(), ImVec2(40.f, 40.f), true))
+	{
+		LOG("IsTrimming : {}", IsTrimming);
+		Trim_StartIndex = 0;
+		Trim_EndIndex = CurrentShot.ballTicks.size() - 1;
 	}
 	if (ImGui::IsItemHovered()) //hovered by mouse
 	{
@@ -401,9 +419,16 @@ void BotReplicateMoves::RenderEditShotWindow()
 
 	ImGui::SameLine();
 	static bool setTrimStartButtonHovered = false;
-	if (ImageButton("SetTrimStartButton", image_setTrimStart->GetImGuiTex(), ImVec2(40.f, 40.f), 5.f, ImColor(255, 255, 255, 200), ImColor(0, 0, 0, 0), ImColor(0, 0, 0, 0), setTrimStartButtonHovered))
-	{
+	void* setTrimStartImageTex = NULL;
+	if (IsTrimming)
+		setTrimStartImageTex = image_setTrimStart->GetImGuiTex();
+	else
+		setTrimStartImageTex = image_setTrimStart_Greyed->GetImGuiTex();
 
+	if (ImageButton("SetTrimStartButton", setTrimStartImageTex, ImVec2(40.f, 40.f), 5.f, ImColor(255, 255, 255, 200), ImColor(0, 0, 0, 0), ImColor(0, 0, 0, 0), setTrimStartButtonHovered))
+	{
+		if (IsTrimming)
+			Trim_StartIndex = inputsIndex;
 	}
 	if (ImGui::IsItemHovered()) //hovered by mouse
 	{
@@ -411,11 +436,20 @@ void BotReplicateMoves::RenderEditShotWindow()
 		ImGui::Text("Set Trim Start At Current Tick");
 		ImGui::EndTooltip();
 	}
-	ImGui::SameLine();
-	static bool setTrimEndButtonHovered = false;
-	if (ImageButton("SetTrimEndButton", image_setTrimEnd->GetImGuiTex(), ImVec2(40.f, 40.f), 5.f, ImColor(255, 255, 255, 200), ImColor(0, 0, 0, 0), ImColor(0, 0, 0, 0), setTrimEndButtonHovered))
-	{
 
+	ImGui::SameLine();
+
+	static bool setTrimEndButtonHovered = false;
+	void* setTrimEndImageTex = NULL;
+	if (IsTrimming)
+		setTrimEndImageTex = image_setTrimEnd->GetImGuiTex();
+	else
+		setTrimEndImageTex = image_setTrimEnd_Greyed->GetImGuiTex();
+
+	if (ImageButton("SetTrimEndButton", setTrimEndImageTex, ImVec2(40.f, 40.f), 5.f, ImColor(255, 255, 255, 200), ImColor(0, 0, 0, 0), ImColor(0, 0, 0, 0), setTrimEndButtonHovered))
+	{
+		if (IsTrimming)
+			Trim_EndIndex = inputsIndex;
 	}
 	if (ImGui::IsItemHovered()) //hovered by mouse
 	{
@@ -424,7 +458,65 @@ void BotReplicateMoves::RenderEditShotWindow()
 		ImGui::EndTooltip();
 	}
 
+	if (IsTrimming && (Trim_StartIndex != 0 || Trim_EndIndex != CurrentShot.ballTicks.size() - 1))
+	{
+		ImGui::SameLine();
 
+		static bool confirmButtonHovered = false;
+		if (ImageButton("ConfirmButton", image_confirm->GetImGuiTex(), ImVec2(20.f, 20.f), 0.f, ImColor(255, 255, 255, 200), ImColor(0, 0, 0, 0), ImColor(0, 0, 0, 0), confirmButtonHovered))
+		{
+			//Start
+			if (Trim_StartIndex != 0)
+			{
+				CurrentShot.ballTicks.erase(CurrentShot.ballTicks.begin(), CurrentShot.ballTicks.begin() + Trim_StartIndex);
+				for (Bot& bot : CurrentShot.bots)
+					bot.ticks.erase(bot.ticks.begin(), bot.ticks.begin() + Trim_StartIndex);
+
+				LOG("Shot trimmed, it now starts at the index {}", Trim_StartIndex);
+
+				Trim_EndIndex -= Trim_StartIndex;
+				Trim_StartIndex = 0;
+			}
+
+			//End
+			if (Trim_EndIndex != 0)
+			{
+				CurrentShot.ballTicks.erase(CurrentShot.ballTicks.begin() + Trim_EndIndex, CurrentShot.ballTicks.end());
+				for (Bot& bot : CurrentShot.bots)
+				{
+					if (Trim_EndIndex < bot.ticks.size())
+						bot.ticks.erase(bot.ticks.begin() + Trim_EndIndex, bot.ticks.end());
+				}
+
+				LOG("Shot trimmed, it now ends at the index {}", Trim_EndIndex);
+				Trim_EndIndex = 0;
+			}
+
+			IsTrimming = false;
+		}
+		if (ImGui::IsItemHovered()) //hovered by mouse
+		{
+			ImGui::BeginTooltip();
+			ImGui::Text("Confirm Trim");
+			ImGui::EndTooltip();
+		}
+		ImGui::SameLine();
+		static bool cancelButtonHovered = false;
+		if (ImageButton("CancelButton", image_cancel->GetImGuiTex(), ImVec2(20.f, 20.f), 0.f, ImColor(255, 255, 255, 200), ImColor(0, 0, 0, 0), ImColor(0, 0, 0, 0), cancelButtonHovered))
+		{
+			IsTrimming = false;
+			Trim_StartIndex = 0;
+			Trim_EndIndex = CurrentShot.ballTicks.size() - 1;
+		}
+		if (ImGui::IsItemHovered()) //hovered by mouse
+		{
+			ImGui::BeginTooltip();
+			ImGui::Text("Cancel Trim");
+			ImGui::EndTooltip();
+		}
+	}
+
+	
 	ImGui::EndChild();
 	style.ScrollbarSize = 16.f; // Set scrollbar size to default
 
@@ -443,21 +535,70 @@ void BotReplicateMoves::RenderEditShotWindow()
 
 	ImGui::SameLine(0.f, table.spaceBetweenColumns);
 
-	table.DrawEmptyCell(columns[1].width, 1);
+	table.BeginCell(columns[1].width, 1);
+
+	ImGui::Text("%d / %d", inputsIndex, CurrentShot.ballTicks.size());
+
+	table.EndCell();
 
 	ImGui::SameLine(0.f, table.spaceBetweenColumns);
 
 	table.BeginCell(columns[2].width, 2);
 
-	static float value1 = 50.f;
-	ImGui::Text("value1 : %f", value1);
+	/*ImGui::Text("value1 : %d", inputsIndex);
 	ImGui::SameLine();
-	ImGui::Text("ticks : %d", CurrentShot.ballTicks.size() - 1);
-	static Slider slider1(&value1, 0.f, 10.f, ImVec2(ImGui::GetContentRegionAvailWidth(), table.cellHeight - (8.f * 2.f)));
+	ImGui::Text("ticks : %d", CurrentShot.ballTicks.size() - 1);*/
+
+	ImVec2 SlidersOrigin = ImGui::GetCursorScreenPos();
+
+	static Slider slider1(&inputsIndex, 0.f, 10.f, ImVec2(ImGui::GetContentRegionAvailWidth(), 28.f), ImVec2(20.f, 10.f), ImColor(200, 200, 200, 255), SlidersOrigin);
+	slider1.CursorOrigin = SlidersOrigin;
+	slider1.sliderSize.x = ImGui::GetContentRegionAvailWidth();
 	if (CurrentShot.ballTicks.size() > 0)
 		slider1.maxValue = CurrentShot.ballTicks.size();
-	value1 = inputsIndex;
 	slider1.Draw();
+	if (slider1.isDragging || ImGui::IsItemHovered())
+	{
+		ImGui::BeginTooltip();
+		ImGui::Text("%d", inputsIndex);
+		ImGui::EndTooltip();
+	}
+
+
+	static Slider slider2(&Trim_StartIndex, 0.f, 10.f, ImVec2(ImGui::GetContentRegionAvailWidth(), 28.f), ImVec2(20.f, 10.f), ImColor(0, 200, 0, 255), SlidersOrigin);
+	slider2.CursorOrigin = SlidersOrigin;
+	slider2.sliderSize.x = ImGui::GetContentRegionAvailWidth();
+	if (CurrentShot.ballTicks.size() > 0)
+		slider2.maxValue = CurrentShot.ballTicks.size();
+	if (IsTrimming)
+	{
+		slider2.Draw();
+		if (slider2.isDragging || ImGui::IsItemHovered())
+		{
+			ImGui::BeginTooltip();
+			ImGui::Text("%d", Trim_StartIndex);
+			ImGui::EndTooltip();
+		}
+	}
+
+
+	static Slider slider3(&Trim_EndIndex, 0.f, 10.f, ImVec2(ImGui::GetContentRegionAvailWidth(), 28.f), ImVec2(20.f, 10.f), ImColor(200, 0, 0, 255), SlidersOrigin);
+	slider3.CursorOrigin = SlidersOrigin;
+	slider3.sliderSize.x = ImGui::GetContentRegionAvailWidth();
+	if (CurrentShot.ballTicks.size() > 0)
+		slider3.maxValue = CurrentShot.ballTicks.size();
+	if (IsTrimming)
+	{
+		slider3.Draw();
+		if (slider3.isDragging || ImGui::IsItemHovered())
+		{
+			ImGui::BeginTooltip();
+			ImGui::Text("%d", Trim_EndIndex);
+			ImGui::EndTooltip();
+		}
+	}
+
+	
 
 	table.EndCell();
 
@@ -569,16 +710,28 @@ void BotReplicateMoves::RenderEditShotWindow()
 
 		ImGui::SameLine(0.f, table.spaceBetweenColumns);
 
-		ImDrawList* draw_list = ImGui::GetWindowDrawList();
 		table.BeginCell(columns[2].width, 2);
 
 		ImVec2 TopCornerLeft = ImGui::GetCursorScreenPos();
-		ImVec2 RectFilled_p_max = ImVec2(TopCornerLeft.x + ImGui::GetContentRegionAvailWidth(), TopCornerLeft.y + table.cellHeight - (8.f * 2.f));
+		float botTimeLineWidthPercentage = 0.f;
+		if (CurrentShot.ballTicks.size() > 0)
+			botTimeLineWidthPercentage = float(bot.ticks.size()) / float(CurrentShot.ballTicks.size());
+		float botTimeLineWidth = ImGui::GetContentRegionAvailWidth() * botTimeLineWidthPercentage;
+		ImVec2 RectFilled_p_max = ImVec2(TopCornerLeft.x + botTimeLineWidth, TopCornerLeft.y + table.cellHeight - (8.f * 2.f));
 		draw_list->AddRectFilled(TopCornerLeft, RectFilled_p_max, ImColor(44, 75, 113, 255), 0.f);
 
 		table.EndCell();
 
 		table.EndRow();
+	}
+
+
+	float LineHeight = ImGui::GetCursorScreenPos().y - slider1.SliderCursorScreenPos.y - 8.f;
+	draw_list->AddLine(slider1.SliderCursorScreenPos, slider1.SliderCursorScreenPos + ImVec2(0, LineHeight), ImColor(255, 255, 255, 255)); //inputsIndex line
+	if (IsTrimming)
+	{
+		draw_list->AddLine(slider2.SliderCursorScreenPos, slider2.SliderCursorScreenPos + ImVec2(0, LineHeight), ImColor(0, 200, 0, 255)); //Trim_StartIndex line
+		draw_list->AddLine(slider3.SliderCursorScreenPos, slider3.SliderCursorScreenPos + ImVec2(0, LineHeight), ImColor(200, 0, 0, 255)); //Trim_EndIndex line
 	}
 
 	if (ImGui::Button("Remove Bot", ImVec2(ImGui::GetContentRegionAvailWidth(), 25.f)))
@@ -594,10 +747,9 @@ void BotReplicateMoves::RenderEditShotWindow()
 
 
 
-	ImGui::GetWindowDrawList()->AddLine(slider1.SliderCursorScreenPos, slider1.SliderCursorScreenPos + ImVec2(0, 400.f), ImColor(255, 255, 255, 255));
 
 	ImGui::Separator();
-	ImGui::Separator();
+	/*ImGui::Separator();
 
 
 
@@ -613,7 +765,7 @@ void BotReplicateMoves::RenderEditShotWindow()
 
 	renderTrimShot();
 
-	ImGui::Separator();
+	ImGui::Separator();*/
 
 	ImGui::NewLine();
 
@@ -633,7 +785,6 @@ void BotReplicateMoves::RenderEditShotWindow()
 		showEditShotWindow = false;
 
 	ImGui::End();
-
 }
 
 void BotReplicateMoves::renderTrimShot()

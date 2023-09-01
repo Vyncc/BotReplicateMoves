@@ -34,9 +34,13 @@ void BotReplicateMoves::onLoad()
 	image_cancel = std::make_shared<ImageWrapper>(dataPath + "\\images\\cancel.png", false, true);
 	image_startRecording = std::make_shared<ImageWrapper>(dataPath + "\\images\\startrecording.png", false, true);
 	image_stopRecording = std::make_shared<ImageWrapper>(dataPath + "\\images\\stoprecording.png", false, true);
+
 	image_trim = std::make_shared<ImageWrapper>(dataPath + "\\images\\trim.png", false, true);
+	image_trim_Greyed = std::make_shared<ImageWrapper>(dataPath + "\\images\\trim_greyed.png", false, true);
 	image_setTrimStart = std::make_shared<ImageWrapper>(dataPath + "\\images\\settrimstart.png", false, true);
+	image_setTrimStart_Greyed = std::make_shared<ImageWrapper>(dataPath + "\\images\\settrimstart_greyed.png", false, true);
 	image_setTrimEnd = std::make_shared<ImageWrapper>(dataPath + "\\images\\settrimend.png", false, true);
+	image_setTrimEnd_Greyed = std::make_shared<ImageWrapper>(dataPath + "\\images\\settrimend_greyed.png", false, true);
 
 	gameWrapper->RegisterDrawable(std::bind(&BotReplicateMoves::RenderCanvas, this, std::placeholders::_1));
 
@@ -214,7 +218,7 @@ void BotReplicateMoves::PlayShot(ServerWrapper server)
 
 		LOG("replaying.... inputIndex : {}", inputsIndex);
 
-		if (!UseTimeLine)
+		if (playingState != PlayingState::PAUSED)
 		{
 			inputsIndex++;
 		}
@@ -284,7 +288,7 @@ void BotReplicateMoves::onTick(CarWrapper caller, void* params, std::string even
 
 	if (playRecord && CurrentShot.GetTicksCount() > 0)
 	{
-		if (playingState == PlayingState::PLAYING && inputsIndex < CurrentShot.GetTicksCount()) //Set recorded inputs to the bots
+		if ((playingState == PlayingState::PLAYING || playingState == PlayingState::PAUSED) && inputsIndex < CurrentShot.GetTicksCount()) //Set recorded inputs to the bots
 		{
 			LOG("PLAYING");
 			PlayShot(sw);
