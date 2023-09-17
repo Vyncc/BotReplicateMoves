@@ -113,14 +113,26 @@ struct BallTick
 	}
 };
 
+struct PlayerInit
+{
+	Vector Location;
+	Rotator Rotation;
+	Vector Velocity;
+	Vector AngularVelocity;
+
+	bool operator==(const PlayerInit& other) const {
+		return Location == other.Location &&
+			Rotation == other.Rotation &&
+			Velocity == other.Velocity &&
+			AngularVelocity == other.AngularVelocity;
+	}
+};
+
 struct Shot
 {
 	int ticksCount = 0;
 
-	/*Vector InitLocation = { 0, 0, 0 };
-	Rotator InitRotation = { 0, 0, 0 };
-	Vector InitVelocity = { 0, 0, 0 };
-	Vector InitAngularVelocity = { 0, 0, 0 };*/
+	PlayerInit playerInit;
 
 	std::vector<Bot> bots = { Bot(0) };
 	std::vector<BallTick> ballTicks;
@@ -151,8 +163,9 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Rotator, Pitch, Yaw, Roll)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BotTick, Input, Location, Rotation, Velocity)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Bot, recording, replaying, botIndex, StartEndIndexes, ticks)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BallTick, BallLocation, BallRotation, BallVelocity)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PlayerInit, Location, Rotation, Velocity, AngularVelocity)
 //NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Shot, ticksCount, InitLocation, InitRotation, InitVelocity, InitAngularVelocity, bots, ballTicks)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Shot, ticksCount, bots, ballTicks)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Shot, ticksCount, playerInit, bots, ballTicks)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Pack, name, shots)
 
 /*
@@ -293,8 +306,11 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	virtual void onUnload();
 
 	std::shared_ptr<ImageWrapper> image_play;
+	std::shared_ptr<ImageWrapper> image_play_greyed;
 	std::shared_ptr<ImageWrapper> image_pause;
+	std::shared_ptr<ImageWrapper> image_pause_greyed;
 	std::shared_ptr<ImageWrapper> image_stop;
+	std::shared_ptr<ImageWrapper> image_stop_greyed;
 	std::shared_ptr<ImageWrapper> image_fastForward;
 	std::shared_ptr<ImageWrapper> image_fastBackward;
 
@@ -302,7 +318,9 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	std::shared_ptr<ImageWrapper> image_confirm;
 	std::shared_ptr<ImageWrapper> image_cancel;
 	std::shared_ptr<ImageWrapper> image_startRecording;
+	std::shared_ptr<ImageWrapper> image_startRecording_Greyed;
 	std::shared_ptr<ImageWrapper> image_stopRecording;
+	std::shared_ptr<ImageWrapper> image_stopRecording_Greyed;
 
 	std::shared_ptr<ImageWrapper> image_trim;
 	std::shared_ptr<ImageWrapper> image_trim_Greyed;
@@ -311,6 +329,11 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	std::shared_ptr<ImageWrapper> image_setTrimEnd;
 	std::shared_ptr<ImageWrapper> image_setTrimEnd_Greyed;
 
+
+	void StartReplaying();
+	void StopReplaying();
+	bool ABotIsRecording();
+	void SetPlayerInitPos();
 
 	void SetMyInputs(MyControllerInput& myinputs, ControllerInput inputs);
 	void SetInputs(ControllerInput& inputs, MyControllerInput myinputs);
@@ -323,13 +346,14 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 
 	bool IsTrimming = false;
 
-	bool SetupingShot = false;
+	bool WaitingForBallToTouchGround = false;
 	bool IsPlayingPack = false;
 
 	bool recording = false;
 	bool playRecord = false;
 	void PlayShot(ServerWrapper server);
 	void TeleportBots(ServerWrapper server);
+	void SetupPlayer();
 	void SpawnBots(ServerWrapper server);
 
 
@@ -394,7 +418,7 @@ class BotReplicateMoves: public BakkesMod::Plugin::BakkesModPlugin, public Bakke
 	int Trim_StartIndex = 0;
 	int Trim_EndIndex = 0;
 	
-	
+	bool renderDisableImageButton(const char* id, bool enableButton, ImTextureID on_image, ImTextureID off_image, ImVec2 size, float padding, ImColor imageColor, ImColor backgroundColor, ImColor backgroundColorHovered);
 
 	// Inherited via PluginWindow
 	bool isWindowOpen_ = false;

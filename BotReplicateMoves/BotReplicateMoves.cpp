@@ -25,15 +25,20 @@ void BotReplicateMoves::onLoad()
 	_globalCvarManager = cvarManager;
 
 	image_play = std::make_shared<ImageWrapper>(dataPath + "\\images\\play.png", false, true);
+	image_play_greyed = std::make_shared<ImageWrapper>(dataPath + "\\images\\play_greyed.png", false, true);
 	image_pause = std::make_shared<ImageWrapper>(dataPath + "\\images\\pause.png", false, true);
+	image_pause_greyed = std::make_shared<ImageWrapper>(dataPath + "\\images\\pause_greyed.png", false, true);
 	image_stop = std::make_shared<ImageWrapper>(dataPath + "\\images\\stop.png", false, true);
+	image_stop_greyed = std::make_shared<ImageWrapper>(dataPath + "\\images\\stop_greyed.png", false, true);
 	image_fastForward = std::make_shared<ImageWrapper>(dataPath + "\\images\\fastforward.png", false, true);
 	image_fastBackward = std::make_shared<ImageWrapper>(dataPath + "\\images\\fastbackward.png", false, true);
 
 	image_confirm = std::make_shared<ImageWrapper>(dataPath + "\\images\\confirm.png", false, true);
 	image_cancel = std::make_shared<ImageWrapper>(dataPath + "\\images\\cancel.png", false, true);
 	image_startRecording = std::make_shared<ImageWrapper>(dataPath + "\\images\\startrecording.png", false, true);
+	image_startRecording_Greyed = std::make_shared<ImageWrapper>(dataPath + "\\images\\startrecording_greyed.png", false, true);
 	image_stopRecording = std::make_shared<ImageWrapper>(dataPath + "\\images\\stoprecording.png", false, true);
+	image_stopRecording_Greyed = std::make_shared<ImageWrapper>(dataPath + "\\images\\stoprecording_greyed.png", false, true);
 
 	image_trim = std::make_shared<ImageWrapper>(dataPath + "\\images\\trim.png", false, true);
 	image_trim_Greyed = std::make_shared<ImageWrapper>(dataPath + "\\images\\trim_greyed.png", false, true);
@@ -59,23 +64,9 @@ void BotReplicateMoves::onLoad()
 
 			if (myCar.memory_address == caller.memory_address) //if the car that hits the ball is the player then we stop replaying the shot
 			{
-				playRecord = false;
+				StopReplaying();
 				LOG("Player hit ball so stop playing the shot");
 
-				//if current shot is not last shot we setup the next one
-				LOG("selectedShot :  {}", selectedShot);
-				if (selectedShot + 1 <= CurrentPack.shots.size() - 1 && !SetupingShot)
-				{
-					SetupingShot = true;
-					if (!IsPlayingPack) return;
-					gameWrapper->SetTimeout([this](GameWrapper* gameWrapper) {
-						cvarManager->log("Setuping next shot...");
-						selectedShot++;
-						CurrentShot = CurrentPack.shots[selectedShot];
-						LOG("Next shot : {}", selectedShot);
-						cvarManager->executeCommand("replicatemoves_setshot");
-						}, 3);
-				}
 				
 			}
 		});
@@ -91,27 +82,6 @@ void BotReplicateMoves::onLoad()
 	gameWrapper->HookEventWithCallerPost<CarWrapper>("Function TAGame.Car_TA.SetVehicleInput", std::bind(&BotReplicateMoves::onTick, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
 	gameWrapper->HookEvent("Function GameEvent_Soccar_TA.Active.StartRound", std::bind(&BotReplicateMoves::InitGame, this, std::placeholders::_1));
-
-	cvarManager->registerNotifier("replicatemoves", [&](std::vector<std::string> args)
-		{
-			ServerWrapper sw = gameWrapper->GetCurrentGameState();
-			if (sw.IsNull()) { return; }
-
-			BallWrapper ball = sw.GetBall();
-			ball.SetLocation(Vector{ 0, 0, 92.739998 });
-			ball.SetRotation(Rotator{ 0, 0, 0 });
-			ball.SetVelocity(Vector{ 0, 0, 0 });
-
-		}, "", 0);
-
-	cvarManager->registerNotifier("test", [&](std::vector<std::string> args)
-		{
-			ServerWrapper sw = gameWrapper->GetCurrentGameState();
-			if (sw.IsNull()) { return; }
-
-			sw.GetPRIs().Get(1).GetCar().GetCollisionComponent().SetBlockRigidBody2(0);
-
-		}, "", 0);
 
 
 	cvarManager->registerNotifier("replicatemoves_startrecording", [&](std::vector<std::string> args)
@@ -144,16 +114,17 @@ void BotReplicateMoves::onLoad()
 	cvarManager->registerNotifier("replicatemoves_setshot", [&](std::vector<std::string> args)
 		{
 			if (!IsPlayingPack) return;
-			tickCount = 0;
-			inputsIndex = 0;
-			playRecord = true;
-			SetupingShot = true;
+			StartReplaying();
 			LOG("Shot {} set !", selectedShot);
 		}, "", 0);
 	cvarManager->registerNotifier("replicatemoves_nextshot", [&](std::vector<std::string> args)
 		{
 			if (!IsPlayingPack) return;
-			selectedShot++;
+			if (selectedShot == CurrentPack.shots.size() - 1) //if selectedShot is at the last index
+				selectedShot = 0;
+			else
+				selectedShot++;
+
 			CurrentShot = CurrentPack.shots[selectedShot];
 			LOG("Next shot : {}", selectedShot);
 			cvarManager->executeCommand("replicatemoves_setshot");
@@ -165,6 +136,59 @@ void BotReplicateMoves::onLoad()
 			CurrentShot = CurrentPack.shots[selectedShot];
 			LOG("Previous shot : {}", selectedShot);
 		}, "", 0);
+}
+
+void BotReplicateMoves::StartReplaying()
+{
+	if (CurrentShot.GetTicksCount() != 0)
+	{
+		LOG("Starting to play the shot");
+
+		playRecord = true;
+		playingState = PlayingState::SPAWNINGBOT;
+
+		for (Bot& b : CurrentShot.bots)
+		{
+			b.replaying = true;
+		}
+	}
+}
+
+void BotReplicateMoves::StopReplaying()
+{
+	if (CurrentShot.GetTicksCount() != 0)
+	{
+		playRecord = false;
+		playingState = PlayingState::STOPPED;
+
+		for (Bot& b : CurrentShot.bots)
+		{
+			b.replaying = false;
+		}
+	}
+}
+
+bool BotReplicateMoves::ABotIsRecording()
+{
+	for (Bot& b : CurrentShot.bots)
+	{
+		if (b.recording)
+			return true;
+	}
+	return false;
+}
+
+void BotReplicateMoves::SetPlayerInitPos()
+{
+	CarWrapper car = gameWrapper->GetLocalCar();
+	if (!car) return;
+
+	CurrentShot.playerInit.Location = car.GetLocation();
+	CurrentShot.playerInit.Rotation = car.GetRotation();
+	CurrentShot.playerInit.Velocity = car.GetVelocity();
+	CurrentShot.playerInit.AngularVelocity = car.GetAngularVelocity();
+
+	LOG("Set player init pos !");
 }
 
 void BotReplicateMoves::PlayShot(ServerWrapper server)
@@ -244,6 +268,19 @@ void BotReplicateMoves::TeleportBots(ServerWrapper server)
 	LOG("bot teleported !");
 }
 
+void BotReplicateMoves::SetupPlayer()
+{
+	CarWrapper car = gameWrapper->GetLocalCar();
+	if (!car) return;
+
+	car.SetLocation(CurrentShot.playerInit.Location);
+	car.SetRotation(CurrentShot.playerInit.Rotation);
+	car.SetVelocity(CurrentShot.playerInit.Velocity);
+	car.SetAngularVelocity(CurrentShot.playerInit.AngularVelocity, false);
+
+	LOG("Player Setup");
+}
+
 void BotReplicateMoves::SpawnBots(ServerWrapper server)
 {
 	//Get how many bots are already in the game
@@ -299,6 +336,12 @@ void BotReplicateMoves::onTick(CarWrapper caller, void* params, std::string even
 			{
 				LOG("TELEPORTINGBOT");
 				TeleportBots(sw);
+
+				if (IsPlayingPack)
+				{
+					LOG("Setuping Player...");
+					SetupPlayer();
+				}
 
 				inputsIndex = 0;
 				playingState = PlayingState::PLAYING;
